@@ -30,7 +30,7 @@ def home():
 
 # Ejemplo de un servicio web para pillar datos de un usuario
 # en base a su nombre, hacer una query a la BD, procesar la 
-# info devuelta y mostrarla en el navegador 
+# info devuelta y mostrarla en el navegador :) 
 
 @app.route("/usuario/<nombre>")
 def hello_there(nombre):
