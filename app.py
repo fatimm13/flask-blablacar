@@ -1,6 +1,8 @@
 
 """
-EJEMPLO SENCILLO PARA AÑADIR DATOS A FIRESTORE
+
+
+#EJEMPLO SENCILLO PARA AÑADIR DATOS A FIRESTORE
 
 import firebase_admin
 from firebase_admin import credentials
@@ -10,15 +12,56 @@ cred = credentials.Certificate("serviceAccountKey.json")
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-db.collection('usuario').add({'nombre':'Pepe', 'edad': 30 })
+pers1 = {
+    'nombre' : 'Manolo',
+    'edad' : 21
+}
+pers2 = {
+    'nombre' : 'Mariana',
+    'edad' : 24
+}
+valoracion1 = {
+    'texto' : 'conduce to bien',
+    'puntuacion' : 4
+}
+valoracion2 = {
+    'texto' : 'conduce to mal',
+    'puntuacion' : 1
+}
+valoracion3 = {
+    'texto' : 'conduce to regular',
+    'puntuacion' : 2
+}
+
+db.collection('personas').document('new-persona-id').set(pers1)
+db.collection('personas').document('new-persona-id').collection('valoraciones').document('val1').set(valoracion1)
+
+"lo mejor es guardarse las colecciones para hacer los doc luego"
+personas = db.collection('personas')
+valManolo = db.collection('personas').document('new-persona-id').collection('valoraciones')
+
+personas.document('mariana-id').set(pers2)
+valManolo.document('val2').set(valoracion2)
+
+valMariana = db.collection('personas').document('mariana-id').collection('valoraciones')
+valMariana.document('val3').set(valoracion3)
+
+valMas2 = db.collection_group('valoraciones').where('puntuacion', '>=', 2)
+docs = valMas2.stream()
+for doc in docs:
+    print(f'{doc.id} => {doc.to_dict()}')
+
 """
+
+
+
 
 
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore
 
-from flask import Flask, request
+from flask import Flask, request, jsonify
 app = Flask(__name__)
 cred = credentials.Certificate("serviceAccountKey.json")
 firebase_admin.initialize_app(cred)
@@ -60,16 +103,26 @@ def conseguir_subir_usuarios():
 
     if request.method == 'GET':
         print("Ha hecho un get")
+        
     elif request.method == 'POST':
         print("")
+        content = {
+            'descripcion' : request.json['descripcion'],
+            'edad' : request.json['edad'],
+            'nombre' : request.json['nombre'],
+            'ubicacion' : request.json['ubicacion']
+        }
+
+        id = db.collection('usuarios').document().set(content)
+        print(id)
     else:
         print("Caso de error")
 
     #En vez de retornar un content tambien se puede devolver 
     # un html usando los metodos adecuados. 
     # Tutoriales guay en Discord de Flask con "Tech With Tim"
-    content = "<h1> Ejemplo </h1>"
-    return content
+    #content = "<h1> Ejemplo </h1>"
+    return jsonify(content)
 
 @app.route("/usuarios/<id>", methods = ['GET','PUT','DELETE'])
 def conseguir_actualizar_eliminar_usuarios(id):
@@ -88,6 +141,7 @@ def conseguir_actualizar_eliminar_usuarios(id):
 
     if request.method == 'GET':
         print("Ha hecho un get")
+        print(request.json)
     elif request.method == 'PUT':
         print("")
     elif request.method == 'DELETE':
@@ -100,6 +154,8 @@ def conseguir_actualizar_eliminar_usuarios(id):
     # Tutoriales guay en Discord de Flask con "Tech With Tim"
     content = "<h1> Ejemplo </h1>"
     return content
+
+
 
 """ 
 EJEMPLO PARA LEER DATOS DE UN USUARIO CONCRETO SABIENDO SU ID DEL DOCUMENTO EN EL QUE ESTÁ.
