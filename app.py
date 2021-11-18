@@ -1,68 +1,9 @@
-
-"""
-
-
-#EJEMPLO SENCILLO PARA AÑADIR DATOS A FIRESTORE
-
-import firebase_admin
-from firebase_admin import credentials
-from firebase_admin import firestore
-
-cred = credentials.Certificate("serviceAccountKey.json")
-firebase_admin.initialize_app(cred)
-db = firestore.client()
-
-pers1 = {
-    'nombre' : 'Manolo',
-    'edad' : 21
-}
-pers2 = {
-    'nombre' : 'Mariana',
-    'edad' : 24
-}
-valoracion1 = {
-    'texto' : 'conduce to bien',
-    'puntuacion' : 4
-}
-valoracion2 = {
-    'texto' : 'conduce to mal',
-    'puntuacion' : 1
-}
-valoracion3 = {
-    'texto' : 'conduce to regular',
-    'puntuacion' : 2
-}
-
-db.collection('personas').document('new-persona-id').set(pers1)
-db.collection('personas').document('new-persona-id').collection('valoraciones').document('val1').set(valoracion1)
-
-"lo mejor es guardarse las colecciones para hacer los doc luego"
-personas = db.collection('personas')
-valManolo = db.collection('personas').document('new-persona-id').collection('valoraciones')
-
-personas.document('mariana-id').set(pers2)
-valManolo.document('val2').set(valoracion2)
-
-valMariana = db.collection('personas').document('mariana-id').collection('valoraciones')
-valMariana.document('val3').set(valoracion3)
-
-valMas2 = db.collection_group('valoraciones').where('puntuacion', '>=', 2)
-docs = valMas2.stream()
-for doc in docs:
-    print(f'{doc.id} => {doc.to_dict()}')
-
-"""
-
-
-
-
-
 from datetime import date, datetime
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore 
 
-from flask import Flask, request, jsonify
+from flask import Flask, json, request, jsonify
 app = Flask(__name__)
 cred = credentials.Certificate("serviceAccountKey.json")
 firebase_admin.initialize_app(cred)
@@ -72,28 +13,21 @@ db = firestore.client()
 def home():
     return "Hello, Flask!"
 
-# Ejemplo de un servicio web para pillar datos de un usuario
-# en base a su nombre, hacer una query a la BD, procesar la 
-# info devuelta y mostrarla en el navegador :) 
+###Función que realiza una petición sobre una tabla, una columna y un valor y devuelve la solución como JSON
+def makeSimpleRequest(tabla, parametro, valor):
 
-@app.route("/usuario/<nombre>")
-def hello_there(nombre):
+    usuario_ref = db.collection(tabla)
+    query_ref = usuario_ref.where(parametro, '==', valor)
     
-    # Create a reference to the cities collection
-    usuario_ref = db.collection('usuario')
-
-    # Create a query against the collection
-    query_ref = usuario_ref.where('nombre', '==', nombre)
-
-    content = "<h1> Tengo "
-
+    d = dict()
+    cont = 0
     for i in query_ref.stream():
-        content = content + f"{i.to_dict()['edad']}"
-    
-    content = content + " años </h1>"
- 
-    return content
+        resp = i.to_dict()
+        d.update({cont : resp})
+        cont = cont+1
+    return jsonify(d)
 
+validAttributes = ["nombre","ubicacion"]
 
 @app.route("/usuarios", methods = ['GET', 'POST'])
 def conseguir_subir_usuarios():
@@ -103,8 +37,19 @@ def conseguir_subir_usuarios():
     # sacariamos de un form. He pasado un tutorial por el grupo de Discord.
 
     if request.method == 'GET':
-        print("Ha hecho un get")
-        return("")
+        #Cogemos el primer par de items, si no hay asignamos None
+        item = next(request.args.items(),None)
+
+        #Comprobamos si es None, si no lo es miramos que esté en los atributos válidos
+        #En caso de estarlo hacemos una request de ese item.
+        if item != None and (item[0] in validAttributes):
+            return makeSimpleRequest("usuarios",item[0],item[1])
+        else:
+            return "Atributo no válido"
+        
+        
+        
+
     elif request.method == 'POST':
         print("")
 
@@ -171,6 +116,87 @@ def conseguir_actualizar_eliminar_usuarios(id):
     #En vez de retornar un content tambien se puede devolver 
     # un html usando los metodos adecuados. 
     # Tutoriales guay en Discord de Flask con "Tech With Tim"
+
+
+"""
+#Pruebas by Pablo
+
+#EJEMPLO SENCILLO PARA AÑADIR DATOS A FIRESTORE
+
+import firebase_admin
+from firebase_admin import credentials
+from firebase_admin import firestore
+
+cred = credentials.Certificate("serviceAccountKey.json")
+firebase_admin.initialize_app(cred)
+db = firestore.client()
+
+pers1 = {
+    'nombre' : 'Manolo',
+    'edad' : 21
+}
+pers2 = {
+    'nombre' : 'Mariana',
+    'edad' : 24
+}
+valoracion1 = {
+    'texto' : 'conduce to bien',
+    'puntuacion' : 4
+}
+valoracion2 = {
+    'texto' : 'conduce to mal',
+    'puntuacion' : 1
+}
+valoracion3 = {
+    'texto' : 'conduce to regular',
+    'puntuacion' : 2
+}
+
+db.collection('personas').document('new-persona-id').set(pers1)
+db.collection('personas').document('new-persona-id').collection('valoraciones').document('val1').set(valoracion1)
+
+"lo mejor es guardarse las colecciones para hacer los doc luego"
+personas = db.collection('personas')
+valManolo = db.collection('personas').document('new-persona-id').collection('valoraciones')
+
+personas.document('mariana-id').set(pers2)
+valManolo.document('val2').set(valoracion2)
+
+valMariana = db.collection('personas').document('mariana-id').collection('valoraciones')
+valMariana.document('val3').set(valoracion3)
+
+valMas2 = db.collection_group('valoraciones').where('puntuacion', '>=', 2)
+docs = valMas2.stream()
+for doc in docs:
+    print(f'{doc.id} => {doc.to_dict()}')
+
+# Ejemplo de un servicio web para pillar datos de un usuario
+# en base a su nombre, hacer una query a la BD, procesar la 
+# info devuelta y mostrarla en el navegador :) 
+
+@app.route("/usuario/<nombre>")
+def hello_there(nombre):
+    
+    # Create a reference to the cities collection
+    usuario_ref = db.collection('usuario')
+
+    # Create a query against the collection
+    query_ref = usuario_ref.where('nombre', '==', nombre)
+
+    content = "<h1> Tengo "
+
+    for i in query_ref.stream():
+        content = content + f"{i.to_dict()['edad']}"
+    
+    content = content + " años </h1>"
+ 
+    return content
+"""
+
+
+
+
+
     
 
 
