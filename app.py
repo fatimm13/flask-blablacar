@@ -57,9 +57,10 @@ for doc in docs:
 
 
 
+from datetime import date, datetime
 import firebase_admin
 from firebase_admin import credentials
-from firebase_admin import firestore
+from firebase_admin import firestore 
 
 from flask import Flask, request, jsonify
 app = Flask(__name__)
@@ -103,26 +104,31 @@ def conseguir_subir_usuarios():
 
     if request.method == 'GET':
         print("Ha hecho un get")
-        
+        return("")
     elif request.method == 'POST':
         print("")
+
+        aux = datetime.now()
+
+        print(aux)
         content = {
             'descripcion' : request.json['descripcion'],
             'edad' : request.json['edad'],
+            'fecha' : aux,
             'nombre' : request.json['nombre'],
             'ubicacion' : request.json['ubicacion']
         }
 
-        id = db.collection('usuarios').document().set(content)
-        print(id)
+        db.collection('usuarios').document().set(content)
+        return jsonify(content)
     else:
-        print("Caso de error")
+        return("400: BAD RESQUEST.")
 
     #En vez de retornar un content tambien se puede devolver 
     # un html usando los metodos adecuados. 
     # Tutoriales guay en Discord de Flask con "Tech With Tim"
     #content = "<h1> Ejemplo </h1>"
-    return jsonify(content)
+    
 
 @app.route("/usuarios/<id>", methods = ['GET','PUT','DELETE'])
 def conseguir_actualizar_eliminar_usuarios(id):
@@ -140,20 +146,32 @@ def conseguir_actualizar_eliminar_usuarios(id):
     # o que usemos el suyo, tengo dudas por la última práctica.
 
     if request.method == 'GET':
-        print("Ha hecho un get")
-        print(request.json)
+
+        dict = db.collection('usuarios').document(str(id)).get().to_dict()
+        return jsonify(dict)
+
     elif request.method == 'PUT':
-        print("")
+        usu = db.collection('usuarios').document(str(id))
+        content = {
+            'descripcion' : request.json['descripcion'],
+            'edad' : request.json['edad'],
+            'nombre' : request.json['nombre'],
+            'ubicacion' : request.json['ubicacion']
+        }
+        usu.update(content)
+        return jsonify(usu.get().to_dict())
+        
     elif request.method == 'DELETE':
-        print("")
+        usu = db.collection('usuarios').document(str(id)).delete()
+        return "200: Borrado exitoso."
     else:
-        print("Caso de error")
+        
+        return "400: BAD RESQUEST."
 
     #En vez de retornar un content tambien se puede devolver 
     # un html usando los metodos adecuados. 
     # Tutoriales guay en Discord de Flask con "Tech With Tim"
-    content = "<h1> Ejemplo </h1>"
-    return content
+    
 
 
 
