@@ -3,7 +3,7 @@ import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore 
 
-from flask import Flask, json, request, jsonify
+from flask import Flask, request, jsonify
 app = Flask(__name__)
 cred = credentials.Certificate("serviceAccountKey.json")
 firebase_admin.initialize_app(cred)
@@ -13,8 +13,18 @@ db = firestore.client()
 def home():
     return "Hello, Flask!"
 
+def getCollection(tabla):
+    query_ref = db.collection(tabla)
+    d = dict()
+    cont = 0
+    for i in query_ref.stream():
+        resp = i.to_dict()
+        d.update({cont : resp})
+        cont = cont+1
+    return jsonify(d)
+
 ###Función que realiza una petición sobre una tabla, una columna y un valor y devuelve la solución como JSON
-def makeSimpleRequest(tabla, parametro, valor):
+def makeSimpleQuery(tabla, parametro, valor):
 
     usuario_ref = db.collection(tabla)
     query_ref = usuario_ref.where(parametro, '==', valor)
@@ -27,7 +37,7 @@ def makeSimpleRequest(tabla, parametro, valor):
         cont = cont+1
     return jsonify(d)
 
-validAttributes = ["nombre","ubicacion"]
+validAttributesUsuarios = ["nombre","ubicacion"]
 
 @app.route("/usuarios", methods = ['GET', 'POST'])
 def conseguir_subir_usuarios():
@@ -42,14 +52,15 @@ def conseguir_subir_usuarios():
 
         #Comprobamos si es None, si no lo es miramos que esté en los atributos válidos
         #En caso de estarlo hacemos una request de ese item.
-        if item != None and (item[0] in validAttributes):
-            return makeSimpleRequest("usuarios",item[0],item[1])
+        if item == None:
+
+            return getCollection("usuarios")
+
+        elif (item[0] in validAttributesUsuarios):
+            return makeSimpleQuery("usuarios",item[0],item[1])
         else:
             return "Atributo no válido"
         
-        
-        
-
     elif request.method == 'POST':
         print("")
 
