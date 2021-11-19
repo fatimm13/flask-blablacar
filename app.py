@@ -1,9 +1,9 @@
 from datetime import date, datetime
 import firebase_admin
 from firebase_admin import credentials
-from firebase_admin import firestore 
+from firebase_admin import firestore
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify 
 app = Flask(__name__)
 cred = credentials.Certificate("serviceAccountKey.json")
 firebase_admin.initialize_app(cred)
@@ -128,6 +128,77 @@ def conseguir_actualizar_eliminar_usuarios(id):
     # un html usando los metodos adecuados. 
     # Tutoriales guay en Discord de Flask con "Tech With Tim"
 
+###Función que realiza una petición sobre una tabla, una columna y un valor y devuelve la solución como JSON
+def makeComplexQuery(tabla, parametros):
+
+    query_ref = db.collection(tabla) 
+    
+    for i in parametros:
+        query_ref.where(i[0], '==', i[1])
+
+    d = dict()
+    cont = 0
+    for i in query_ref.stream():
+        resp = i.to_dict()
+
+        aux = dict()
+        for key, value in resp.items():
+            string = ""
+
+            if isinstance('GeoPoint', type(value)):
+
+                string = "["+str(value.latitude)+","+str(value.longitude)+"]"
+
+            else:
+                string = str(value)
+                
+        aux = {key: string }
+
+        d.update({cont : aux})
+        cont = cont+1
+
+    return jsonify(d)
+
+validAttributesViajes = ["nombre","origen","destino","libres"]
+@app.route("/viajes", methods = ['GET', 'POST'])
+def conseguir_subir_viajes():
+    # Siguiendo el ejemplo de la página 44,
+    # se debería hacer GET "/viajes" para pillar todos los viajes
+    # y POST "/viajes" para crear un viaje. Los datos para el post los
+    # sacariamos de un form. He pasado un tutorial por el grupo de Discord.
+
+    if request.method == 'GET':
+        #Cogemos el primer par de items, si no hay asignamos None
+        items = [i for i in request.args.items() if i[0] in validAttributesViajes ]
+        
+        if len(items)==len(request.args):
+            return makeComplexQuery("viajes",items)
+        else:
+            return "Algún atributo no es válido"
+        #Comprobamos si es None, si no lo es miramos que esté en los atributos válidos
+        #En caso de estarlo hacemos una request de ese item.
+        
+        
+        
+        
+    elif request.method == 'POST':
+        print("")
+
+        aux = datetime.now()
+
+        print(aux)
+        content = {
+            'descripcion' : request.json['descripcion'],
+            'edad' : request.json['edad'],
+            'fecha' : aux,
+            'nombre' : request.json['nombre'],
+            'ubicacion' : request.json['ubicacion']
+        }
+
+        db.collection('usuarios').document().set(content)
+        return jsonify(content)
+    else:
+        return("400: BAD RESQUEST.")
 
 """
 #Pruebas by Pablo
