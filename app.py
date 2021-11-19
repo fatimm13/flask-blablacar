@@ -2,6 +2,7 @@ from datetime import date, datetime
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore
+from google.cloud.firestore_v1 import GeoPoint
 
 from flask import Flask, request, jsonify 
 app = Flask(__name__)
@@ -9,23 +10,41 @@ cred = credentials.Certificate("serviceAccountKey.json")
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
+
 @app.route("/")
 def home():
     return "Hello, Flask!"
 
 def getCollection(tabla):
+    '''Función que pide una colección de la BD
+    y la devuelve como JSON
+    '''
     query_ref = db.collection(tabla)
     d = dict()
     cont = 0
     for i in query_ref.stream():
         resp = i.to_dict()
+        for key, value in resp.items(): resp.update({key : stringify(value)})
         d.update({cont : resp})
         cont = cont+1
     return jsonify(d)
 
-###Función que realiza una petición sobre una tabla, una columna y un valor y devuelve la solución como JSON
-def makeSimpleQuery(tabla, parametro, valor):
+def stringify(value):
+    '''
+    str controlando tipos de la BD que no disponen del mismo
+    '''
 
+    string = ""
+    if(isinstance(value,GeoPoint)):
+        string = "["+str(value.latitude)+","+str(value.longitude)+"]"
+    else:
+        string = str(value)
+    return string
+
+def makeSimpleQuery(tabla, parametro, valor):
+    '''Función que realiza una petición sobre una colección con 
+    un único atributo y valor y devuelve la solución como JSON
+    '''
     usuario_ref = db.collection(tabla)
     query_ref = usuario_ref.where(parametro, '==', valor)
     
@@ -33,8 +52,33 @@ def makeSimpleQuery(tabla, parametro, valor):
     cont = 0
     for i in query_ref.stream():
         resp = i.to_dict()
+
+        for key, value in resp.items(): resp.update({key : stringify(value)})
+
         d.update({cont : resp})
         cont = cont+1
+    return jsonify(d)
+
+###Función que realiza una petición sobre una tabla, una columna y un valor y devuelve la solución como JSON
+def makeComplexQuery(tabla, parametros):
+    '''Función que realiza una petición sobre una colección con 
+    varios atributos y un único valor para cada uno y devuelve la solución como JSON
+    '''
+    query_ref = db.collection(tabla) 
+    
+    for i in parametros:
+        query_ref = query_ref.where(i[0], '==', i[1])
+
+    d = dict()
+    cont = 0
+    for i in query_ref.stream():
+        resp = i.to_dict()
+        
+        for key, value in resp.items(): resp.update({key : stringify(value)})
+
+        d.update({cont : resp})
+        cont = cont+1
+
     return jsonify(d)
 
 validAttributesUsuarios = ["nombre","ubicacion"]
@@ -128,36 +172,6 @@ def conseguir_actualizar_eliminar_usuarios(id):
     # un html usando los metodos adecuados. 
     # Tutoriales guay en Discord de Flask con "Tech With Tim"
 
-###Función que realiza una petición sobre una tabla, una columna y un valor y devuelve la solución como JSON
-def makeComplexQuery(tabla, parametros):
-
-    query_ref = db.collection(tabla) 
-    
-    for i in parametros:
-        query_ref.where(i[0], '==', i[1])
-
-    d = dict()
-    cont = 0
-    for i in query_ref.stream():
-        resp = i.to_dict()
-
-        aux = dict()
-        for key, value in resp.items():
-            string = ""
-
-            if isinstance('GeoPoint', type(value)):
-
-                string = "["+str(value.latitude)+","+str(value.longitude)+"]"
-
-            else:
-                string = str(value)
-                
-        aux = {key: string }
-
-        d.update({cont : aux})
-        cont = cont+1
-
-    return jsonify(d)
 
 validAttributesViajes = ["nombre","origen","destino","libres"]
 @app.route("/viajes", methods = ['GET', 'POST'])
@@ -177,10 +191,6 @@ def conseguir_subir_viajes():
             return "Algún atributo no es válido"
         #Comprobamos si es None, si no lo es miramos que esté en los atributos válidos
         #En caso de estarlo hacemos una request de ese item.
-        
-        
-        
-        
     elif request.method == 'POST':
         print("")
 
