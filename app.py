@@ -42,6 +42,8 @@ def stringify(value):
     return string
 
 numericos = ["edad","precio","plazas","libres"]
+validAttributesUsuarios = ["nombre","ubicacion"]
+validAttributesViajes = ["nombre","origen","destino","libres"]
 
 def makeSimpleQuery(tabla, parametro, valor):
     '''Función que realiza una petición sobre una colección con 
@@ -90,7 +92,7 @@ def makeComplexQuery(tabla, parametros):
 
     return jsonify(d)
 
-validAttributesUsuarios = ["nombre","ubicacion"]
+
 
 @app.route("/usuarios", methods = ['GET', 'POST'])
 def conseguir_subir_usuarios():
@@ -182,7 +184,7 @@ def conseguir_actualizar_eliminar_usuarios(id):
     # Tutoriales guay en Discord de Flask con "Tech With Tim"
 
 
-validAttributesViajes = ["nombre","origen","destino","libres"]
+
 @app.route("/viajes", methods = ['GET', 'POST'])
 def conseguir_subir_viajes():
     # Siguiendo el ejemplo de la página 44,
