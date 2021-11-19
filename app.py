@@ -41,12 +41,18 @@ def stringify(value):
         string = str(value)
     return string
 
+numericos = ["edad","precio","plazas","libres"]
+
 def makeSimpleQuery(tabla, parametro, valor):
     '''Función que realiza una petición sobre una colección con 
     un único atributo y valor y devuelve la solución como JSON
     '''
     usuario_ref = db.collection(tabla)
-    query_ref = usuario_ref.where(parametro, '==', valor)
+
+    if(parametro in numericos):
+        query_ref = usuario_ref.where(parametro, '==', int(valor))
+    else:
+        query_ref = usuario_ref.where(parametro, '==', valor)
     
     d = dict()
     cont = 0
@@ -67,7 +73,10 @@ def makeComplexQuery(tabla, parametros):
     query_ref = db.collection(tabla) 
     
     for i in parametros:
-        query_ref = query_ref.where(i[0], '==', i[1])
+        if(i[0] in numericos):
+            query_ref = query_ref.where(i[0], '==', int(i[1]))
+        else:
+            query_ref = query_ref.where(i[0], '==', i[1])
 
     d = dict()
     cont = 0
@@ -186,6 +195,7 @@ def conseguir_subir_viajes():
         items = [i for i in request.args.items() if i[0] in validAttributesViajes ]
         
         if len(items)==len(request.args):
+            
             return makeComplexQuery("viajes",items)
         else:
             return "Algún atributo no es válido"
