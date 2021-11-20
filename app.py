@@ -311,6 +311,7 @@ def conseguir_actualizar_eliminar_viajes(id):
         dict = db.collection('viajes').document(str(id)).get().to_dict()
         idCond = dict['idConductor']
         db.collection('usuarios').document(str(idCond)).collection('viajes').document(str(id)).delete()
+        #TODO Borrar donde es pasajero ( Se hará cuando tengamos forma de registrar pasajeros)
 
         viaje = db.collection('viajes').document(str(id)).delete()
         return "200: Borrado exitoso."
