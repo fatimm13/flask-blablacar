@@ -92,7 +92,27 @@ def makeComplexQuery(tabla, parametros):
 
     return jsonify(d)
 
+def makeViajesQuery(parametros):
+    query_ref = db.collection("viajes") 
+    for i in parametros:
+        if(i[0] == "libres"):
+            query_ref = query_ref.where(i[0], '>=', int(i[1]))
+        else:
+            query_ref = query_ref.where(i[0], '==', i[1])
 
+    d = dict()
+    cont = 0
+
+    for i in query_ref.stream():
+        resp = i.to_dict()
+        
+        for key, value in resp.items(): resp.update({key : stringify(value)})
+
+        d.update({cont : resp})
+        cont = cont+1
+
+    return jsonify(d)
+    
 
 @app.route("/usuarios", methods = ['GET', 'POST'])
 def conseguir_subir_usuarios():
@@ -169,7 +189,10 @@ def conseguir_actualizar_eliminar_usuarios(id):
             'nombre' : request.json['nombre'],
             'ubicacion' : request.json['ubicacion']
         }
-        usu.update(content)
+        ### TODO
+        # viajes = db.collection("viajes").where("idConductor","==",str(id))
+        # Buscar documentacion sobre las queries
+        
         return jsonify(usu.get().to_dict())
         
     elif request.method == 'DELETE':
@@ -198,29 +221,101 @@ def conseguir_subir_viajes():
         
         if len(items)==len(request.args):
             
-            return makeComplexQuery("viajes",items)
+            return makeViajesQuery(items)
         else:
             return "Algún atributo no es válido"
-        #Comprobamos si es None, si no lo es miramos que esté en los atributos válidos
-        #En caso de estarlo hacemos una request de ese item.
+            
     elif request.method == 'POST':
-        print("")
+        
 
-        aux = datetime.now()
+        ### Crear viaje
+        aux = datetime.fromisoformat(request.json['hora'])
 
-        print(aux)
+        latOrig = request.json['latOrig']
+        longOrig = request.json['longOrig']
+        coordOrig = GeoPoint(latOrig,longOrig)
+        latDest = request.json['latDest']
+        longDest = request.json['longDest'] 
+        coordDest = GeoPoint(latDest, longDest)
+        
         content = {
-            'descripcion' : request.json['descripcion'],
-            'edad' : request.json['edad'],
-            'fecha' : aux,
+            'coordOrigen' : coordOrig,
+            'coordDestino' : coordDest,
+            'horaDeSalida' : aux,
             'nombre' : request.json['nombre'],
-            'ubicacion' : request.json['ubicacion']
+            'destino' : request.json['destino'],
+            'origen' : request.json['origen'],
+            'nombreConductor' : request.json['nombreConductor'],
+            'idConductor' : request.json['idConductor'],
+            'plazas' : request.json['plazas'],
+            'libres' : request.json['libres'],
+            'precio' : request.json['precio']
         }
 
-        db.collection('usuarios').document().set(content)
+        v = db.collection('viajes').document()
+        v.set(content)
+        c = db.collection('usuarios').document(str(request.json['idConductor']))
+        c.collection("viajes").document(v.id).set({'nombre' : request.json['nombre'], 'esConductor' : True})
+        
+        content["coordOrigen"] = stringify(coordOrig)
+        content["coordDestino"] = stringify(coordDest)
         return jsonify(content)
     else:
         return("400: BAD RESQUEST.")
+
+
+@app.route("/viajes/<id>", methods = ['GET','PUT','DELETE'])
+def conseguir_actualizar_eliminar_viajes(id):
+    # Siguiendo el ejemplo de la página 44,
+    # se debería hacer GET "/usuario/3" para pillar un usuario concreto
+    # y PUT "/usuario/3" para actualizar un usuario, lo mismo para 
+    # DELETE "/usuario/3" el cual borra un usuario. 
+
+    #El profe hace todo esto en teoria para evitar el uso de 
+    # verbos en las rutas, lo cual es simplemente un estandar,
+    # sin embargo, lo que siempre se suele hacer es tener un metodo
+    # delete_usuario, otro update_usuario y asi tener todo más atómico
+    # y sencillo, pero bueno en principio él parece tenerlo de la forma 
+    # que he comentado más arriba. No sé si quiere que usemos un estándar 
+    # o que usemos el suyo, tengo dudas por la última práctica.
+
+    if request.method == 'GET':
+
+        dict = db.collection('viajes').document(str(id)).get().to_dict()
+        return jsonify(dict)
+
+    elif request.method == 'PUT':
+        viaje = db.collection('viajes').document(str(id))
+
+        aux = datetime.fromisoformat(request.json['hora'])
+
+        content = {
+            'horaDeSalida' : aux,
+            'libres' : request.json['libres']
+        }
+        viaje.update(content)
+        
+        
+
+        return jsonify(viaje.get().to_dict())
+        
+    elif request.method == 'DELETE':
+        dict = db.collection('viajes').document(str(id)).get().to_dict()
+        idCond = dict['idConductor']
+        db.collection('usuarios').document(str(idCond)).collection('viajes').document(str(id)).delete()
+
+        viaje = db.collection('viajes').document(str(id)).delete()
+        return "200: Borrado exitoso."
+    else:
+        
+        return "400: BAD RESQUEST."
+
+    #En vez de retornar un content tambien se puede devolver 
+    # un html usando los metodos adecuados. 
+    # Tutoriales guay en Discord de Flask con "Tech With Tim"
+
+
+
 
 """
 #Pruebas by Pablo
