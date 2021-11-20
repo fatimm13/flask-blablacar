@@ -287,6 +287,8 @@ def conseguir_actualizar_eliminar_viajes(id):
     if request.method == 'GET':
 
         dict = db.collection('viajes').document(str(id)).get().to_dict()
+        dict["coordOrigen"] = stringify(dict["coordOrigen"])
+        dict["coordDestino"] = stringify(dict["coordDestino"])
         return jsonify(dict)
 
     elif request.method == 'PUT':
@@ -300,9 +302,10 @@ def conseguir_actualizar_eliminar_viajes(id):
         }
         viaje.update(content)
         
-        
-
-        return jsonify(viaje.get().to_dict())
+        dict = viaje.get().to_dict()
+        dict["coordOrigen"] = stringify(dict["coordOrigen"])
+        dict["coordDestino"] = stringify(dict["coordDestino"])
+        return jsonify(dict)
         
     elif request.method == 'DELETE':
         dict = db.collection('viajes').document(str(id)).get().to_dict()
