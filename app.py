@@ -190,8 +190,13 @@ def conseguir_actualizar_eliminar_usuarios(id):
             'ubicacion' : request.json['ubicacion']
         }
         ### TODO
-        # viajes = db.collection("viajes").where("idConductor","==",str(id))
         # Buscar documentacion sobre las queries
+        
+        viajes = db.collection("viajes")
+        resul = viajes.where("idConductor","==",str(id))
+        for i in resul.stream():
+            viajes.document(str(i.id)).update({"nombreConductor":request.json['nombre']})
+        
         
         return jsonify(usu.get().to_dict())
         
