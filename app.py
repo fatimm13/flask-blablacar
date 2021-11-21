@@ -3,6 +3,8 @@ import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore
 from google.cloud.firestore_v1 import GeoPoint
+import requests ##csv, operator, 
+import pandas as pd
 
 from flask import Flask, request, jsonify 
 app = Flask(__name__)
@@ -10,10 +12,30 @@ cred = credentials.Certificate("serviceAccountKey.json")
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
+preciosGasolina = None
+
+URL_PRECIO_GASOLINA = "https://geoportalgasolineras.es/resources/files/preciosEESS_es.xls"
 
 @app.route("/")
 def home():
-    return "Hello, Flask!"
+    downloadXLS(URL_PRECIO_GASOLINA)
+    return "Hello Flask"
+
+def downloadXLS(xls_url):
+    '''
+        Recibe una URL y descarga los datos como XLS
+    '''
+
+    req = requests.get(xls_url)
+    url_content = req.content
+    csv_file = open('downloaded.xls', 'wb')
+    csv_file.write(url_content)
+    csv_file.close()
+
+    global preciosGasolina 
+    preciosGasolina = pd.read_excel(url_content)
+    
+##TODO el resultado de pd.readexcel tiene un query   
 
 def getCollection(tabla):
     '''Función que pide una colección de la BD
