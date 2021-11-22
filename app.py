@@ -14,7 +14,7 @@ db = firestore.client()
 
 preciosGasolina = None
 covid = None
-fecha = None
+ultActGas = None
 URL_PRECIO_GASOLINA = "https://geoportalgasolineras.es/resources/files/preciosEESS_es.xls"
 URL_DATOS_COVID = "https://www.mscbs.gob.es/profesionales/saludPublica/ccayes/alertasActual/nCov/documentos/Datos_Capacidad_Asistencial_Historico_19112021.csv"
 
@@ -43,10 +43,10 @@ def downloadXLS(xls_url):
     '''
         Recibe una URL y descarga los datos como XLS
     '''
-    global preciosGasolina, fecha
+    global preciosGasolina, ultActGas
     ahora = datetime.now()
 
-    if fecha==None or (ahora-fecha).total_seconds() >= 600:
+    if ultActGas==None or (ahora-ultActGas).total_seconds() >= 600:
         req = requests.get(xls_url)
         url_content = req.content
         
@@ -59,7 +59,7 @@ def downloadXLS(xls_url):
         preciosGasolina = preciosGasolina[["Provincia","Municipio","Localidad","Código_postal","Dirección","Longitud","Latitud","Precio_gasolina_95_E5","Precio_gasolina_98_E5","Precio_gasóleo_A","Rótulo","Horario"]]
         preciosGasolina["Longitud"] = [ float(i.replace(',', '.')) for i in preciosGasolina["Longitud"]]
         preciosGasolina["Latitud"] = [ float(i.replace(',', '.')) for i in preciosGasolina["Latitud"]]
-        fecha = ahora
+        ultActGas = ahora
     
 ##TODO el resultado de pd.readexcel tiene un query   
 
