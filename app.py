@@ -50,12 +50,12 @@ def downloadXLS(xls_url):
     csv_file = open('downloaded.xls', 'wb')
     csv_file.write(url_content)
     csv_file.close()
-
     global preciosGasolina 
     preciosGasolina = pd.read_excel(url_content, skiprows=np.arange(3))
     preciosGasolina.columns =[column.replace(" ", "_") for column in preciosGasolina.columns]
-    #preciosGasolina = preciosGasolina["Provincia","Municipio","Localidad","Código_postal","Dirección","Longitud","Latitud","Precio_gasolina_95_E5","Precio_gasolina_98_E5","Precio_gasóleo_A","Rótulo","Horario"]
-
+    preciosGasolina = preciosGasolina[["Provincia","Municipio","Localidad","Código_postal","Dirección","Longitud","Latitud","Precio_gasolina_95_E5","Precio_gasolina_98_E5","Precio_gasóleo_A","Rótulo","Horario"]]
+    preciosGasolina["Longitud"] = [ float(i.replace(',', '.')) for i in preciosGasolina["Longitud"]]
+    preciosGasolina["Latitud"] = [ float(i.replace(',', '.')) for i in preciosGasolina["Latitud"]]
     
 ##TODO el resultado de pd.readexcel tiene un query   
 
@@ -407,11 +407,11 @@ def conseguir_gasolinera():
             lat = float(request.args["latitud"])
             long = float(request.args["longitud"])
             radio = 0.1
-            
-            q = 'Latitud <= '+str(lat-radio)+' and '+'Latitud >= '+str(lat+radio)+' and '
-            q = q + 'Longitud <= '+str(long-radio)+' and '+'Longitud >= '+str(long+radio)
-            
-            return jsonify(data.query(q, inplace = True).to_dict())
+            q = 'Latitud >= '+str(lat-radio)+' and '+'Latitud <= '+str(lat+radio)+' and ' + 'Longitud >= '+str(long-radio)+' and '+'Longitud <= '+str(long+radio)
+
+            #data = data[data.Latitud >= (lat-radio) and data.Latitud <= (lat+radio) and data.Longitud >= (long-radio) and data.Longitud <= (long+radio) ]
+            data.query(q, inplace = True)
+            return data.to_json()
             
         elif("provincia" in keys):
             data = preciosGasolina.copy()
