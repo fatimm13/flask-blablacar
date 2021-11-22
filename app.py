@@ -13,13 +13,31 @@ firebase_admin.initialize_app(cred)
 db = firestore.client()
 
 preciosGasolina = None
-
+covid = None
 URL_PRECIO_GASOLINA = "https://geoportalgasolineras.es/resources/files/preciosEESS_es.xls"
+URL_DATOS_COVID = "https://www.mscbs.gob.es/profesionales/saludPublica/ccayes/alertasActual/nCov/documentos/Datos_Capacidad_Asistencial_Historico_19112021.csv"
 
 @app.route("/")
 def home():
     downloadXLS(URL_PRECIO_GASOLINA)
     return "Hello Flask"
+
+def downloadCSV(csv_url):
+    '''
+        Recibe una URL y descarga los datos como CSV
+    '''
+
+    req = requests.get(csv_url)
+    url_content = req.content
+    csv_file = open('downloaded.csv', 'wb')
+    csv_file.write(url_content)
+    csv_file.close()
+    
+    global covid 
+    covid = pd.read_csv(url_content)
+
+    covid.columns =[column.replace(" ", "_") for column in covid.columns]
+
 
 def downloadXLS(xls_url):
     '''
@@ -28,12 +46,18 @@ def downloadXLS(xls_url):
 
     req = requests.get(xls_url)
     url_content = req.content
+    
     csv_file = open('downloaded.xls', 'wb')
     csv_file.write(url_content)
     csv_file.close()
 
     global preciosGasolina 
     preciosGasolina = pd.read_excel(url_content)
+    """nombre = preciosGasolina[2]
+    preciosGasolina = preciosGasolina.drop(range(3))
+    preciosGasolina.rename(columns = nombre)"""
+    preciosGasolina.columns =[column.replace(" ", "_") for column in preciosGasolina.columns]
+   
     
 ##TODO el resultado de pd.readexcel tiene un query   
 
@@ -42,6 +66,12 @@ def getCollection(tabla):
     y la devuelve como JSON
     '''
     query_ref = db.collection(tabla)
+    return fromCollectionToJson(query_ref)
+
+def fromCollectionToJson(query_ref):
+    '''Función que recibe una referencia de una colección
+    y la devuelve como JSON
+    '''
     d = dict()
     cont = 0
     for i in query_ref.stream():
@@ -175,7 +205,7 @@ def conseguir_subir_usuarios():
         db.collection('usuarios').document().set(content)
         return jsonify(content)
     else:
-        return("400: BAD RESQUEST.")
+        return("400: BAD REQUEST.")
 
     #En vez de retornar un content tambien se puede devolver 
     # un html usando los metodos adecuados. 
@@ -227,13 +257,23 @@ def conseguir_actualizar_eliminar_usuarios(id):
         return "200: Borrado exitoso."
     else:
         
-        return "400: BAD RESQUEST."
+        return "400: BAD REQUEST."
 
     #En vez de retornar un content tambien se puede devolver 
     # un html usando los metodos adecuados. 
     # Tutoriales guay en Discord de Flask con "Tech With Tim"
 
+@app.route("/usuarios/<id>/viajesConductor", methods = ['GET'])
+def conseguir_viajes_conductor(id):
+    """
+    Devuelve los viajes del conductor ordenados por horaDeSalida
+    """
 
+    if request.method == 'GET':
+        viajes = db.collection('viajes').where('idConductor', '==', str(id)).order_by('horaDeSalida', direction=firestore.Query.ASCENDING)
+        return fromCollectionToJson(viajes)
+    else:
+        return "400: BAD REQUEST."
 
 @app.route("/viajes", methods = ['GET', 'POST'])
 def conseguir_subir_viajes():
@@ -288,7 +328,7 @@ def conseguir_subir_viajes():
         content["coordDestino"] = stringify(coordDest)
         return jsonify(content)
     else:
-        return("400: BAD RESQUEST.")
+        return("400: BAD REQUEST.")
 
 
 @app.route("/viajes/<id>", methods = ['GET','PUT','DELETE'])
@@ -339,15 +379,70 @@ def conseguir_actualizar_eliminar_viajes(id):
         return "200: Borrado exitoso."
     else:
         
-        return "400: BAD RESQUEST."
+        return "400: BAD REQUEST."
 
     #En vez de retornar un content tambien se puede devolver 
     # un html usando los metodos adecuados. 
     # Tutoriales guay en Discord de Flask con "Tech With Tim"
 
+@app.route("/viajes/<id>/conductor", methods = ['GET'])
+def conseguir_conductor_viaje(id):
+    
+    if request.method == 'GET':
+        viaje = db.collection('viajes').document(str(id)).get().to_dict()
+        idConductor = viaje['idConductor']
+        conductor = db.collection('usuarios').document(idConductor).get().to_dict()
+        return jsonify(conductor)
+    else:
+        return "400: BAD REQUEST."
 
+validAttributesGasolinera = ["latitud","longitud","provincia"]
+@app.route("/gasolinera", methods = ['GET'])
+def conseguir_gasolinera():
+    if request.method == 'GET':
+        items = [i for i in request.args.items() if i[0] in validAttributesGasolinera ]
+        keys = [i[0] for i in request.args.items()]
+        global preciosGasolina
+        if ("latitud" in keys and "longitud" in keys):
+            
+            data = preciosGasolina.copy()
+            lat = float(request.args["latitud"])
+            long = float(request.args["longitud"])
+            radio = 0.1
+            
+            q = 'Latitud <= '+str(lat-radio)+' and '+'Latitud >= '+str(lat+radio)+' and '
+            q = q + 'Longitud <= '+str(long-radio)+' and '+'Longitud >= '+str(long+radio)
+            
+            return jsonify(data.query(q, inplace = True).to_dict())
+            
+        elif("provincia" in keys):
+            data = preciosGasolina.copy()
+            q = 'Provincia == "'+request.args["provincia"]+'"'
+            return jsonify(data.query(q, inplace = True).to_dict())
+            
+        else:
+            return "Algún atributo no es válido"
+    else:
+        return("400: BAD REQUEST.")
 
+validAttributesCovid = ["provincia"]        
+@app.route("/covid", methods =['GET'])
+def conseguir_datos_covid():
+    if request.method == 'GET':
+        items = [i for i in request.args.items() if i[0] in validAttributesCovid ]
+        keys = [i[0] for i in request.args.items()]
+        global covid
+        data = covid.copy()
+        if("provincia" in keys):
+            q ='Provincia ==' + items["provincia"]
+            return jsonify(data.query(q, inplace=True).to_dict())
+        else:
+            return "Algún atributo no es válido"
+    else:
+        return "400: BAD REQUEST."
 
+        
+        
 """
 #Pruebas by Pablo
 
