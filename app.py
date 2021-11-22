@@ -14,12 +14,12 @@ db = firestore.client()
 
 preciosGasolina = None
 covid = None
+fecha = None
 URL_PRECIO_GASOLINA = "https://geoportalgasolineras.es/resources/files/preciosEESS_es.xls"
 URL_DATOS_COVID = "https://www.mscbs.gob.es/profesionales/saludPublica/ccayes/alertasActual/nCov/documentos/Datos_Capacidad_Asistencial_Historico_19112021.csv"
 
 @app.route("/")
 def home():
-    downloadXLS(URL_PRECIO_GASOLINA)
     return "Hello Flask"
 
 def downloadCSV(csv_url):
@@ -43,19 +43,23 @@ def downloadXLS(xls_url):
     '''
         Recibe una URL y descarga los datos como XLS
     '''
+    global preciosGasolina, fecha
+    ahora = datetime.now()
 
-    req = requests.get(xls_url)
-    url_content = req.content
-    
-    csv_file = open('downloaded.xls', 'wb')
-    csv_file.write(url_content)
-    csv_file.close()
-    global preciosGasolina 
-    preciosGasolina = pd.read_excel(url_content, skiprows=np.arange(3))
-    preciosGasolina.columns =[column.replace(" ", "_") for column in preciosGasolina.columns]
-    preciosGasolina = preciosGasolina[["Provincia","Municipio","Localidad","Código_postal","Dirección","Longitud","Latitud","Precio_gasolina_95_E5","Precio_gasolina_98_E5","Precio_gasóleo_A","Rótulo","Horario"]]
-    preciosGasolina["Longitud"] = [ float(i.replace(',', '.')) for i in preciosGasolina["Longitud"]]
-    preciosGasolina["Latitud"] = [ float(i.replace(',', '.')) for i in preciosGasolina["Latitud"]]
+    if fecha==None or (ahora-fecha).total_seconds() >= 600:
+        req = requests.get(xls_url)
+        url_content = req.content
+        
+        csv_file = open('downloaded.xls', 'wb')
+        csv_file.write(url_content)
+        csv_file.close()
+        
+        preciosGasolina = pd.read_excel(url_content, skiprows=np.arange(3))
+        preciosGasolina.columns =[column.replace(" ", "_") for column in preciosGasolina.columns]
+        preciosGasolina = preciosGasolina[["Provincia","Municipio","Localidad","Código_postal","Dirección","Longitud","Latitud","Precio_gasolina_95_E5","Precio_gasolina_98_E5","Precio_gasóleo_A","Rótulo","Horario"]]
+        preciosGasolina["Longitud"] = [ float(i.replace(',', '.')) for i in preciosGasolina["Longitud"]]
+        preciosGasolina["Latitud"] = [ float(i.replace(',', '.')) for i in preciosGasolina["Latitud"]]
+        fecha = ahora
     
 ##TODO el resultado de pd.readexcel tiene un query   
 
@@ -398,6 +402,7 @@ validAttributesGasolinera = ["latitud","longitud","provincia"]
 @app.route("/gasolinera", methods = ['GET'])
 def conseguir_gasolinera():
     if request.method == 'GET':
+        downloadXLS(URL_PRECIO_GASOLINA)
         items = [i for i in request.args.items() if i[0] in validAttributesGasolinera ]
         keys = [i[0] for i in request.args.items()]
         global preciosGasolina
