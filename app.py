@@ -5,7 +5,7 @@ from firebase_admin import firestore
 from google.cloud.firestore_v1 import GeoPoint
 import requests ##csv, operator, 
 import pandas as pd
-
+import numpy as np
 from flask import Flask, request, jsonify 
 app = Flask(__name__)
 cred = credentials.Certificate("serviceAccountKey.json")
@@ -52,12 +52,10 @@ def downloadXLS(xls_url):
     csv_file.close()
 
     global preciosGasolina 
-    preciosGasolina = pd.read_excel(url_content)
-    """nombre = preciosGasolina[2]
-    preciosGasolina = preciosGasolina.drop(range(3))
-    preciosGasolina.rename(columns = nombre)"""
+    preciosGasolina = pd.read_excel(url_content, skiprows=np.arange(3))
     preciosGasolina.columns =[column.replace(" ", "_") for column in preciosGasolina.columns]
-   
+    #preciosGasolina = preciosGasolina["Provincia","Municipio","Localidad","Código_postal","Dirección","Longitud","Latitud","Precio_gasolina_95_E5","Precio_gasolina_98_E5","Precio_gasóleo_A","Rótulo","Horario"]
+
     
 ##TODO el resultado de pd.readexcel tiene un query   
 
@@ -418,7 +416,8 @@ def conseguir_gasolinera():
         elif("provincia" in keys):
             data = preciosGasolina.copy()
             q = 'Provincia == "'+request.args["provincia"]+'"'
-            return jsonify(data.query(q, inplace = True).to_dict())
+            data.query(q, inplace = True)
+            return jsonify(data.to_dict())
             
         else:
             return "Algún atributo no es válido"
@@ -435,7 +434,8 @@ def conseguir_datos_covid():
         data = covid.copy()
         if("provincia" in keys):
             q ='Provincia ==' + items["provincia"]
-            return jsonify(data.query(q, inplace=True).to_dict())
+            data.query(q, inplace=True)
+            return jsonify(data.to_dict())
         else:
             return "Algún atributo no es válido"
     else:
