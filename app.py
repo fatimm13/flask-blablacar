@@ -15,6 +15,7 @@ db = firestore.client()
 preciosGasolina = None
 covid = None
 ultActGas = None
+ultActCov = None
 URL_PRECIO_GASOLINA = "https://geoportalgasolineras.es/resources/files/preciosEESS_es.xls"
 URL_DATOS_COVID = "https://www.mscbs.gob.es/profesionales/saludPublica/ccayes/alertasActual/nCov/documentos/Datos_Capacidad_Asistencial_Historico_19112021.csv"
 
@@ -26,18 +27,25 @@ def downloadCSV(csv_url):
     '''
         Recibe una URL y descarga los datos como CSV
     '''
+    global covid, ultActCov
+    ahora = datetime.now()
 
-    req = requests.get(csv_url)
-    url_content = req.content
-    csv_file = open('downloaded.csv', 'wb')
-    csv_file.write(url_content)
-    csv_file.close()
+    if ultActCov==None or (ahora-ultActCov).total_seconds() >= 3600:
+        req = requests.get(csv_url)
+        url_content = req.content
+        csv_file = open('downloaded.csv', 'wb')
+        csv_file.write(url_content)
+        csv_file.close()
+        
+        global covid 
+        covid = pd.read_csv('downloaded.csv',encoding='latin-1',sep=";")
+        covid = covid[["Fecha","Provincia","INGRESOS_COVID19"]]
+        covid['Fecha'] = pd.to_datetime(covid['Fecha'], infer_datetime_format = True)
+        covid.columns =[column.replace(" ", "_") for column in covid.columns]
+        covid.sort_values(by = 'Fecha', ascending = False, inplace = True)
+        ultActCov = ahora
+
     
-    global covid 
-    covid = pd.read_csv(url_content)
-
-    covid.columns =[column.replace(" ", "_") for column in covid.columns]
-
 
 def downloadXLS(xls_url):
     '''
@@ -46,7 +54,7 @@ def downloadXLS(xls_url):
     global preciosGasolina, ultActGas
     ahora = datetime.now()
 
-    if ultActGas==None or (ahora-ultActGas).total_seconds() >= 600:
+    if ultActGas==None or (ahora-ultActGas).total_seconds() >= 1800:
         req = requests.get(xls_url)
         url_content = req.content
         
@@ -398,12 +406,10 @@ def conseguir_conductor_viaje(id):
     else:
         return "400: BAD REQUEST."
 
-validAttributesGasolinera = ["latitud","longitud","provincia"]
 @app.route("/gasolinera", methods = ['GET'])
 def conseguir_gasolinera():
     if request.method == 'GET':
         downloadXLS(URL_PRECIO_GASOLINA)
-        items = [i for i in request.args.items() if i[0] in validAttributesGasolinera ]
         keys = [i[0] for i in request.args.items()]
         global preciosGasolina
         if ("latitud" in keys and "longitud" in keys):
@@ -416,7 +422,7 @@ def conseguir_gasolinera():
 
             #data = data[data.Latitud >= (lat-radio) and data.Latitud <= (lat+radio) and data.Longitud >= (long-radio) and data.Longitud <= (long+radio) ]
             data.query(q, inplace = True)
-            return data.to_json()
+            return jsonify(data.to_dict())
             
         elif("provincia" in keys):
             data = preciosGasolina.copy()
@@ -428,17 +434,17 @@ def conseguir_gasolinera():
             return "Algún atributo no es válido"
     else:
         return("400: BAD REQUEST.")
-
-validAttributesCovid = ["provincia"]        
+     
 @app.route("/covid", methods =['GET'])
 def conseguir_datos_covid():
     if request.method == 'GET':
-        items = [i for i in request.args.items() if i[0] in validAttributesCovid ]
+        
+        downloadCSV(URL_DATOS_COVID)
         keys = [i[0] for i in request.args.items()]
-        global covid
+        global covid, fechaA
         data = covid.copy()
         if("provincia" in keys):
-            q ='Provincia ==' + items["provincia"]
+            q ='Provincia ==' + request.args["provincia"]
             data.query(q, inplace=True)
             return jsonify(data.to_dict())
         else:
