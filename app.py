@@ -156,12 +156,21 @@ def makeComplexQuery(tabla, parametros):
 
 def makeViajesQuery(parametros):
     query_ref = db.collection("viajes")
-
+    filtro = None
+    otro = None
     for i in parametros:
         if(i[0] == "libres"):
-            query_ref = query_ref.where(i[0], '>=', int(i[1]))
+            if filtro == None :
+                filtro = i[0]
+                query_ref = query_ref.where(i[0], '>=', int(i[1]))
+            else:
+                otro = i[0]
         elif(i[0] == "precio"):
-            query_ref = query_ref.where(i[0], '<=', float(i[1]))
+            if filtro == None :
+                filtro = i[0]
+                query_ref = query_ref.where(i[0], '<=', float(i[1]))
+            else:
+                otro = i[0]
         else:
             query_ref = query_ref.where(i[0], '==', i[1])
 
@@ -175,7 +184,7 @@ def makeViajesQuery(parametros):
 
         d.update({cont : resp})
         cont = cont+1
-
+    
     return jsonify(d)
     
 
