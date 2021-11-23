@@ -12,12 +12,13 @@ cred = credentials.Certificate("serviceAccountKey.json")
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-preciosGasolina = None
-covid = None
-ultActGas = None
-ultActCov = None
 URL_PRECIO_GASOLINA = "https://geoportalgasolineras.es/resources/files/preciosEESS_es.xls"
+preciosGasolina = None
+ultActGas = None
+
 URL_DATOS_COVID = "https://www.mscbs.gob.es/profesionales/saludPublica/ccayes/alertasActual/nCov/documentos/Datos_Capacidad_Asistencial_Historico_19112021.csv"
+covid = None
+ultActCov = None
 
 @app.route("/")
 def home():
@@ -118,16 +119,8 @@ def makeSimpleQuery(tabla, parametro, valor):
     else:
         query_ref = usuario_ref.where(parametro, '==', valor)
     
-    d = dict()
-    cont = 0
-    for i in query_ref.stream():
-        resp = i.to_dict()
-
-        for key, value in resp.items(): resp.update({key : stringify(value)})
-
-        d.update({cont : resp})
-        cont = cont+1
-    return jsonify(d)
+    
+    return fromCollectionToJson(query_ref)
 
 ###Función que realiza una petición sobre una tabla, una columna y un valor y devuelve la solución como JSON
 def makeComplexQuery(tabla, parametros):
@@ -142,17 +135,8 @@ def makeComplexQuery(tabla, parametros):
         else:
             query_ref = query_ref.where(i[0], '==', i[1])
 
-    d = dict()
-    cont = 0
-    for i in query_ref.stream():
-        resp = i.to_dict()
-        
-        for key, value in resp.items(): resp.update({key : stringify(value)})
 
-        d.update({cont : resp})
-        cont = cont+1
-
-    return jsonify(d)
+    return fromCollectionToJson(query_ref)
 
 def makeViajesQuery(parametros):
     query_ref = db.collection("viajes")
