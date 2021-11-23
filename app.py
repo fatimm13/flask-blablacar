@@ -38,11 +38,11 @@ def downloadCSV(csv_url):
         csv_file.close()
         
         global covid 
-        covid = pd.read_csv('downloaded.csv',encoding='latin-1',sep=";")
+        dateparse = lambda x: datetime.strptime(x, '%d/%m/%Y')
+        covid = pd.read_csv('downloaded.csv',encoding='latin-1',sep=";",parse_dates=True,date_parser=dateparse)
         covid = covid[["Fecha","Provincia","INGRESOS_COVID19"]]
-        covid['Fecha'] = pd.to_datetime(covid['Fecha'], infer_datetime_format = True)
         covid.columns =[column.replace(" ", "_") for column in covid.columns]
-        covid.sort_values(by = 'Fecha', ascending = False, inplace = True)
+        
         ultActCov = ahora
 
     
@@ -441,11 +441,15 @@ def conseguir_datos_covid():
         
         downloadCSV(URL_DATOS_COVID)
         keys = [i[0] for i in request.args.items()]
-        global covid, fechaA
+        global covid
         data = covid.copy()
         if("provincia" in keys):
-            q ='Provincia ==' + request.args["provincia"]
+            q ='Provincia == "' + request.args["provincia"]+'"'
             data.query(q, inplace=True)
+            data["Fecha"] = [datetime.strptime(i, '%d/%m/%Y') for i in data["Fecha"]]
+            data.sort_values(by = 'Fecha', ascending = False, inplace = True)
+            data = data.head(15)
+            data = data.reset_index(drop=True)
             return jsonify(data.to_dict())
         else:
             return "Algún atributo no es válido"
