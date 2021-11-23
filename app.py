@@ -103,9 +103,9 @@ def stringify(value):
         string = str(value)
     return string
 
-numericos = ["edad","precio","plazas","libres"]
+numericos = ["edad","plazas","libres"]
 validAttributesUsuarios = ["nombre","ubicacion"]
-validAttributesViajes = ["nombre","origen","destino","libres"]
+validAttributesViajes = ["nombre","origen","destino","libres","precio"]
 
 def makeSimpleQuery(tabla, parametro, valor):
     '''Función que realiza una petición sobre una colección con 
@@ -155,10 +155,13 @@ def makeComplexQuery(tabla, parametros):
     return jsonify(d)
 
 def makeViajesQuery(parametros):
-    query_ref = db.collection("viajes") 
+    query_ref = db.collection("viajes")
+
     for i in parametros:
         if(i[0] == "libres"):
             query_ref = query_ref.where(i[0], '>=', int(i[1]))
+        elif(i[0] == "precio"):
+            query_ref = query_ref.where(i[0], '<=', float(i[1]))
         else:
             query_ref = query_ref.where(i[0], '==', i[1])
 
