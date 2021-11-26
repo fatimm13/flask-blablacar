@@ -23,11 +23,29 @@ ultConsCov = None
 
 @app.route("/")
 def home():
+    downloadCSV(URL_DATOS_COVID)
     return "Hello Flask"
+
+def downloadCSVComplete(url):
+    '''
+    Recibe una URL y descarga los datos como CSV.
+    '''
+    req = requests.get(url)
+    url_content = req.content
+    #Estas tres lineas guardan el documento en local para luego leerlo
+    csv_file = open('downloaded.csv', 'wb')
+    csv_file.write(url_content)
+    csv_file.close()
+    #Realizamos operaciones de parseado sobre la fecha para poder utilizarla para ordenar los resultados
+    global covid 
+    dateparse = lambda x: datetime.strptime(x, '%d/%m/%Y')
+    covid = pd.read_csv('downloaded.csv',encoding='latin-1',sep=";",parse_dates=True,date_parser=dateparse)
+    covid = covid[["Fecha","Provincia","INGRESOS_COVID19"]]
+    covid.columns =[column.replace(" ", "_") for column in covid.columns]
 
 def downloadCSV(csv_url):
     '''
-    Recibe una URL y descarga los datos como CSV.
+    Recibe una URL y descarga los datos del útlimo día como CSV.
     '''
     global covid, ultActCov, ultConsCov
     ahora = datetime.now()
@@ -38,38 +56,14 @@ def downloadCSV(csv_url):
         try:
             #Creamos una request al url con el que trabajamos y luego obtenemos sus datos
             url = csv_url+datetime.strftime(ahora, '%d%m%Y')+".csv"
-            req = requests.get(url)
-            url_content = req.content
-        
-            #Estas tres lineas guardan el documento en local para luego leerlo
-            csv_file = open('downloaded.csv', 'wb')
-            csv_file.write(url_content)
-            csv_file.close()
+            downloadCSVComplete(url)
             ultActCov = ahora
+            db.collection('configuracion').document('fechaActualizacion').update({"fechaCovid":ahora})
         except:
-            if(ultActCov==None):
-                #Creamos una request al url con el que trabajamos y luego obtenemos sus datos
-                url = csv_url+datetime.strftime(ahora- timedelta(days=4), '%d%m%Y')+".csv"
-                req = requests.get(url)
-                url_content = req.content
-                
-                #Estas tres lineas guardan el documento en local para luego leerlo
-                csv_file = open('downloaded.csv', 'wb')
-                csv_file.write(url_content)
-                csv_file.close()
-                ultActCov = ahora - timedelta(days=5)
-        
-        
-        #Realizamos operaciones de parseado sobre la fecha para poder utilizarla para ordenar los resultados
-        global covid 
-        dateparse = lambda x: datetime.strptime(x, '%d/%m/%Y')
-        covid = pd.read_csv('downloaded.csv',encoding='latin-1',sep=";",parse_dates=True,date_parser=dateparse)
-        covid = covid[["Fecha","Provincia","INGRESOS_COVID19"]]
-        covid.columns =[column.replace(" ", "_") for column in covid.columns]
-        
-        
-
-    
+            #Creamos una request al url con el que trabajamos y luego obtenemos sus datos
+            ultActCov = db.collection('configuracion').document('fechaActualizacion').get().to_dict()["fechaCovid"]
+            url = csv_url+datetime.strftime(ultActCov, '%d%m%Y')+".csv"
+            downloadCSVComplete(url)
 
 def downloadXLS(xls_url):
     '''
