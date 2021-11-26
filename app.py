@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore
@@ -16,9 +16,10 @@ URL_PRECIO_GASOLINA = "https://geoportalgasolineras.es/resources/files/preciosEE
 preciosGasolina = None
 ultActGas = None
 
-URL_DATOS_COVID = "https://www.mscbs.gob.es/profesionales/saludPublica/ccayes/alertasActual/nCov/documentos/Datos_Capacidad_Asistencial_Historico_19112021.csv"
+URL_DATOS_COVID = "https://www.mscbs.gob.es/profesionales/saludPublica/ccayes/alertasActual/nCov/documentos/Datos_Capacidad_Asistencial_Historico_"
 covid = None
 ultActCov = None
+ultConsCov = None
 
 @app.route("/")
 def home():
@@ -26,43 +27,68 @@ def home():
 
 def downloadCSV(csv_url):
     '''
-        Recibe una URL y descarga los datos como CSV
+    Recibe una URL y descarga los datos como CSV.
     '''
-    global covid, ultActCov
+    global covid, ultActCov, ultConsCov
     ahora = datetime.now()
 
-    if ultActCov==None or (ahora-ultActCov).total_seconds() >= 3600:
-        req = requests.get(csv_url)
-        url_content = req.content
-        csv_file = open('downloaded.csv', 'wb')
-        csv_file.write(url_content)
-        csv_file.close()
+    #Actualiza los datos desde el servidor si estos llevan más de un día sin ser actualizados en el servidor.
+    if ultConsCov==None or (ahora-ultConsCov).total_seconds() >= 86400:
+        ultConsCov = ahora
+        try:
+            #Creamos una request al url con el que trabajamos y luego obtenemos sus datos
+            url = csv_url+datetime.strftime(ahora, '%d%m%Y')+".csv"
+            req = requests.get(url)
+            url_content = req.content
         
+            #Estas tres lineas guardan el documento en local para luego leerlo
+            csv_file = open('downloaded.csv', 'wb')
+            csv_file.write(url_content)
+            csv_file.close()
+            ultActCov = ahora
+        except:
+            if(ultActCov==None):
+                #Creamos una request al url con el que trabajamos y luego obtenemos sus datos
+                url = csv_url+datetime.strftime(ahora- timedelta(days=4), '%d%m%Y')+".csv"
+                req = requests.get(url)
+                url_content = req.content
+                
+                #Estas tres lineas guardan el documento en local para luego leerlo
+                csv_file = open('downloaded.csv', 'wb')
+                csv_file.write(url_content)
+                csv_file.close()
+                ultActCov = ahora - timedelta(days=5)
+        
+        
+        #Realizamos operaciones de parseado sobre la fecha para poder utilizarla para ordenar los resultados
         global covid 
         dateparse = lambda x: datetime.strptime(x, '%d/%m/%Y')
         covid = pd.read_csv('downloaded.csv',encoding='latin-1',sep=";",parse_dates=True,date_parser=dateparse)
         covid = covid[["Fecha","Provincia","INGRESOS_COVID19"]]
         covid.columns =[column.replace(" ", "_") for column in covid.columns]
         
-        ultActCov = ahora
+        
 
     
 
 def downloadXLS(xls_url):
     '''
-        Recibe una URL y descarga los datos como XLS
+    Recibe una URL y descarga los datos como XLS.
     '''
     global preciosGasolina, ultActGas
     ahora = datetime.now()
 
+    #Actualiza los datos desde el servidor si estos llevan más media hora sin ser actualizados en el servidor.
     if ultActGas==None or (ahora-ultActGas).total_seconds() >= 1800:
         req = requests.get(xls_url)
         url_content = req.content
         
+        #Estas tres lineas guardan el documento en local, no son necesarias para el funcionamiento del sistema una vez montado como servidor.
         csv_file = open('downloaded.xls', 'wb')
         csv_file.write(url_content)
         csv_file.close()
         
+        #Parseamos Latitud y Longitud a float para facilitar trabajar con ellos más adelante.
         preciosGasolina = pd.read_excel(url_content, skiprows=np.arange(3))
         preciosGasolina.columns =[column.replace(" ", "_") for column in preciosGasolina.columns]
         preciosGasolina = preciosGasolina[["Provincia","Municipio","Localidad","Código_postal","Dirección","Longitud","Latitud","Precio_gasolina_95_E5","Precio_gasolina_98_E5","Precio_gasóleo_A","Rótulo","Horario"]]
@@ -70,18 +96,17 @@ def downloadXLS(xls_url):
         preciosGasolina["Latitud"] = [ float(i.replace(',', '.')) for i in preciosGasolina["Latitud"]]
         ultActGas = ahora
     
-##TODO el resultado de pd.readexcel tiene un query   
 
 def getCollection(tabla):
-    '''Función que pide una colección de la BD
-    y la devuelve como JSON
+    '''
+    Función que pide una colección de la BD y la devuelve como JSON.
     '''
     query_ref = db.collection(tabla)
     return fromCollectionToJson(query_ref)
 
 def fromCollectionToJson(query_ref):
-    '''Función que recibe una referencia de una colección
-    y la devuelve como JSON
+    '''
+    Función que recibe una referencia de una colección y la devuelve como JSON.
     '''
     d = dict()
     cont = 0
@@ -94,9 +119,8 @@ def fromCollectionToJson(query_ref):
 
 def stringify(value):
     '''
-    str controlando tipos de la BD que no disponen del mismo
+    str() controlando tipos de la BD que no disponen del mismo.
     '''
-
     string = ""
     if(isinstance(value,GeoPoint)):
         string = "["+str(value.latitude)+","+str(value.longitude)+"]"
@@ -109,8 +133,9 @@ validAttributesUsuarios = ["nombre","ubicacion"]
 validAttributesViajes = ["nombre","origen","destino","libres","precio"]
 
 def makeSimpleQuery(tabla, parametro, valor):
-    '''Función que realiza una petición sobre una colección con 
-    un único atributo y valor y devuelve la solución como JSON
+    '''
+    Función que realiza una petición sobre una colección con 
+    un único atributo y valor y devuelve la solución como JSON.
     '''
     usuario_ref = db.collection(tabla)
 
@@ -119,13 +144,12 @@ def makeSimpleQuery(tabla, parametro, valor):
     else:
         query_ref = usuario_ref.where(parametro, '==', valor)
     
-    
     return fromCollectionToJson(query_ref)
 
-###Función que realiza una petición sobre una tabla, una columna y un valor y devuelve la solución como JSON
 def makeComplexQuery(tabla, parametros):
-    '''Función que realiza una petición sobre una colección con 
-    varios atributos y un único valor para cada uno y devuelve la solución como JSON
+    '''
+    Función que realiza una petición sobre una colección con varios atributos
+    y un único valor para cada uno y devuelve la solución como JSON.
     '''
     query_ref = db.collection(tabla) 
     
@@ -135,10 +159,13 @@ def makeComplexQuery(tabla, parametros):
         else:
             query_ref = query_ref.where(i[0], '==', i[1])
 
-
     return fromCollectionToJson(query_ref)
 
 def makeViajesQuery(parametros):
+    '''
+    Función que realiza una petición sobre viajes con varios atributos ("nombre","origen","destino")
+    y filtra por otros dos ("libres","precio"), devolvindo la solución como JSON.
+    '''
     query_ref = db.collection("viajes")
     
     valor = None
@@ -166,11 +193,11 @@ def makeViajesQuery(parametros):
 
 @app.route("/usuarios", methods = ['GET', 'POST'])
 def conseguir_subir_usuarios():
-    # Siguiendo el ejemplo de la página 44,
-    # se debería hacer GET "/usuarios" para pillar todos los usuarios
-    # y POST "/usuarios" para crear un usuario. Los datos para el post los
-    # sacariamos de un form. He pasado un tutorial por el grupo de Discord.
-
+    """
+    GET: Devuelve los usuarios cuyo atributo coincide con el primer argumento pasado (nombre o ubicación).
+    POST: Recibe un JSON y crea un documento en la BD con dichos datos.
+    """
+    
     if request.method == 'GET':
         #Cogemos el primer par de items, si no hay asignamos None
         item = next(request.args.items(),None)
@@ -187,11 +214,9 @@ def conseguir_subir_usuarios():
             return "Atributo no válido"
         
     elif request.method == 'POST':
-        print("")
 
         aux = datetime.now()
 
-        print(aux)
         content = {
             'descripcion' : request.json['descripcion'],
             'edad' : request.json['edad'],
@@ -205,26 +230,15 @@ def conseguir_subir_usuarios():
     else:
         return("400: BAD REQUEST.")
 
-    #En vez de retornar un content tambien se puede devolver 
-    # un html usando los metodos adecuados. 
-    # Tutoriales guay en Discord de Flask con "Tech With Tim"
-    #content = "<h1> Ejemplo </h1>"
     
 
 @app.route("/usuarios/<id>", methods = ['GET','PUT','DELETE'])
 def conseguir_actualizar_eliminar_usuarios(id):
-    # Siguiendo el ejemplo de la página 44,
-    # se debería hacer GET "/usuario/3" para pillar un usuario concreto
-    # y PUT "/usuario/3" para actualizar un usuario, lo mismo para 
-    # DELETE "/usuario/3" el cual borra un usuario. 
-
-    #El profe hace todo esto en teoria para evitar el uso de 
-    # verbos en las rutas, lo cual es simplemente un estandar,
-    # sin embargo, lo que siempre se suele hacer es tener un metodo
-    # delete_usuario, otro update_usuario y asi tener todo más atómico
-    # y sencillo, pero bueno en principio él parece tenerlo de la forma 
-    # que he comentado más arriba. No sé si quiere que usemos un estándar 
-    # o que usemos el suyo, tengo dudas por la última práctica.
+    """
+    GET: Devuelve un usuario a partir del id pasado.
+    PUT: Actualiza el usuario del id pasado con los parametros del JSON recibido.
+    DELETE: Borra un usuario a partir de su id.
+    """
 
     if request.method == 'GET':
 
@@ -239,15 +253,13 @@ def conseguir_actualizar_eliminar_usuarios(id):
             'nombre' : request.json['nombre'],
             'ubicacion' : request.json['ubicacion']
         }
-        ### TODO
-        # Buscar documentacion sobre las queries
         
         viajes = db.collection("viajes")
         resul = viajes.where("idConductor","==",str(id))
         for i in resul.stream():
-            viajes.document(str(i.id)).update({"nombreConductor":request.json['nombre']})
+            viajes.document(str(i.id)).update({'nombreConducto' : request.json['nombre']})
         
-        
+        usu.update(content)
         return jsonify(usu.get().to_dict())
         
     elif request.method == 'DELETE':
@@ -257,14 +269,11 @@ def conseguir_actualizar_eliminar_usuarios(id):
         
         return "400: BAD REQUEST."
 
-    #En vez de retornar un content tambien se puede devolver 
-    # un html usando los metodos adecuados. 
-    # Tutoriales guay en Discord de Flask con "Tech With Tim"
 
 @app.route("/usuarios/<id>/viajesConductor", methods = ['GET'])
 def conseguir_viajes_conductor(id):
     """
-    Devuelve los viajes del conductor ordenados por horaDeSalida
+    GET: Devuelve los viajes del conductor ordenados por horaDeSalida.
     """
 
     if request.method == 'GET':
@@ -275,10 +284,10 @@ def conseguir_viajes_conductor(id):
 
 @app.route("/viajes", methods = ['GET', 'POST'])
 def conseguir_subir_viajes():
-    # Siguiendo el ejemplo de la página 44,
-    # se debería hacer GET "/viajes" para pillar todos los viajes
-    # y POST "/viajes" para crear un viaje. Los datos para el post los
-    # sacariamos de un form. He pasado un tutorial por el grupo de Discord.
+    """
+    GET: Devuelve los viajes cuyos atributos coinciden con los atributos válidos pasados ['nombre','origen','destino','libres','precio'].
+    POST: Recibe un JSON y crea un documento en la BD con dichos datos.
+    """
 
     if request.method == 'GET':
         #Cogemos el primer par de items, si no hay asignamos None
@@ -290,8 +299,7 @@ def conseguir_subir_viajes():
         else:
             return "Algún atributo no es válido"
             
-    elif request.method == 'POST':
-        
+    elif request.method == 'POST': 
 
         ### Crear viaje
         aux = datetime.fromisoformat(request.json['hora'])
@@ -331,19 +339,11 @@ def conseguir_subir_viajes():
 
 @app.route("/viajes/<id>", methods = ['GET','PUT','DELETE'])
 def conseguir_actualizar_eliminar_viajes(id):
-    # Siguiendo el ejemplo de la página 44,
-    # se debería hacer GET "/usuario/3" para pillar un usuario concreto
-    # y PUT "/usuario/3" para actualizar un usuario, lo mismo para 
-    # DELETE "/usuario/3" el cual borra un usuario. 
-
-    #El profe hace todo esto en teoria para evitar el uso de 
-    # verbos en las rutas, lo cual es simplemente un estandar,
-    # sin embargo, lo que siempre se suele hacer es tener un metodo
-    # delete_usuario, otro update_usuario y asi tener todo más atómico
-    # y sencillo, pero bueno en principio él parece tenerlo de la forma 
-    # que he comentado más arriba. No sé si quiere que usemos un estándar 
-    # o que usemos el suyo, tengo dudas por la última práctica.
-
+    """
+    GET: Obtiene el documento de un viaje por ID.
+    PUT: Actualiza el documento de un viaje por ID, recibe los datos por JSON. 
+    DELETE: Borra el documento de un viaje por ID.
+    """
     if request.method == 'GET':
 
         dict = db.collection('viajes').document(str(id)).get().to_dict()
@@ -371,7 +371,7 @@ def conseguir_actualizar_eliminar_viajes(id):
         dict = db.collection('viajes').document(str(id)).get().to_dict()
         idCond = dict['idConductor']
         db.collection('usuarios').document(str(idCond)).collection('viajes').document(str(id)).delete()
-        #TODO Borrar donde es pasajero ( Se hará cuando tengamos forma de registrar pasajeros)
+        #TODO Borrar donde es pasajero (Se hará cuando tengamos forma de registrar pasajeros)
 
         viaje = db.collection('viajes').document(str(id)).delete()
         return "200: Borrado exitoso."
@@ -379,13 +379,12 @@ def conseguir_actualizar_eliminar_viajes(id):
         
         return "400: BAD REQUEST."
 
-    #En vez de retornar un content tambien se puede devolver 
-    # un html usando los metodos adecuados. 
-    # Tutoriales guay en Discord de Flask con "Tech With Tim"
 
 @app.route("/viajes/<id>/conductor", methods = ['GET'])
 def conseguir_conductor_viaje(id):
-    
+    """
+    GET: Obtiene el documento del conductor de un viaje por el ID del viaje.
+    """
     if request.method == 'GET':
         viaje = db.collection('viajes').document(str(id)).get().to_dict()
         idConductor = viaje['idConductor']
@@ -396,7 +395,11 @@ def conseguir_conductor_viaje(id):
 
 @app.route("/gasolinera", methods = ['GET'])
 def conseguir_gasolinera():
+    """
+    GET: Obtiene las gasolineras dentro de un radio con respecto a unas cordenadas o las busca por provincia (Solo busca por una de las 2).
+    """
     if request.method == 'GET':
+        #Actualizamos los datos si es necesario(En el interior de la función se controla cuando actualizarlos).
         downloadXLS(URL_PRECIO_GASOLINA)
         keys = [i[0] for i in request.args.items()]
         global preciosGasolina
@@ -408,7 +411,6 @@ def conseguir_gasolinera():
             radio = 0.1
             q = 'Latitud >= '+str(lat-radio)+' and '+'Latitud <= '+str(lat+radio)+' and ' + 'Longitud >= '+str(long-radio)+' and '+'Longitud <= '+str(long+radio)
 
-            #data = data[data.Latitud >= (lat-radio) and data.Latitud <= (lat+radio) and data.Longitud >= (long-radio) and data.Longitud <= (long+radio) ]
             data.query(q, inplace = True)
             return jsonify(data.to_dict())
             
@@ -425,14 +427,19 @@ def conseguir_gasolinera():
      
 @app.route("/covid", methods =['GET'])
 def conseguir_datos_covid():
+    """
+    GET: Obtiene la cantidad de ingresos por covid en las últimas 15 entradas en una provincia por su nombre.
+    """
     if request.method == 'GET':
-        
+        #Actualizamos los datos si es necesario(En el interior de la función se controla cuando actualizarlos).
         downloadCSV(URL_DATOS_COVID)
         keys = [i[0] for i in request.args.items()]
         global covid
         data = covid.copy()
         if("provincia" in keys):
+
             q ='Provincia == "' + request.args["provincia"]+'"'
+
             data.query(q, inplace=True)
             data["Fecha"] = [datetime.strptime(i, '%d/%m/%Y') for i in data["Fecha"]]
             data.sort_values(by = 'Fecha', ascending = False, inplace = True)
@@ -445,110 +452,3 @@ def conseguir_datos_covid():
         return "400: BAD REQUEST."
 
         
-        
-"""
-#Pruebas by Pablo
-
-#EJEMPLO SENCILLO PARA AÑADIR DATOS A FIRESTORE
-
-import firebase_admin
-from firebase_admin import credentials
-from firebase_admin import firestore
-
-cred = credentials.Certificate("serviceAccountKey.json")
-firebase_admin.initialize_app(cred)
-db = firestore.client()
-
-pers1 = {
-    'nombre' : 'Manolo',
-    'edad' : 21
-}
-pers2 = {
-    'nombre' : 'Mariana',
-    'edad' : 24
-}
-valoracion1 = {
-    'texto' : 'conduce to bien',
-    'puntuacion' : 4
-}
-valoracion2 = {
-    'texto' : 'conduce to mal',
-    'puntuacion' : 1
-}
-valoracion3 = {
-    'texto' : 'conduce to regular',
-    'puntuacion' : 2
-}
-
-db.collection('personas').document('new-persona-id').set(pers1)
-db.collection('personas').document('new-persona-id').collection('valoraciones').document('val1').set(valoracion1)
-
-"lo mejor es guardarse las colecciones para hacer los doc luego"
-personas = db.collection('personas')
-valManolo = db.collection('personas').document('new-persona-id').collection('valoraciones')
-
-personas.document('mariana-id').set(pers2)
-valManolo.document('val2').set(valoracion2)
-
-valMariana = db.collection('personas').document('mariana-id').collection('valoraciones')
-valMariana.document('val3').set(valoracion3)
-
-valMas2 = db.collection_group('valoraciones').where('puntuacion', '>=', 2)
-docs = valMas2.stream()
-for doc in docs:
-    print(f'{doc.id} => {doc.to_dict()}')
-
-# Ejemplo de un servicio web para pillar datos de un usuario
-# en base a su nombre, hacer una query a la BD, procesar la 
-# info devuelta y mostrarla en el navegador :) 
-
-@app.route("/usuario/<nombre>")
-def hello_there(nombre):
-    
-    # Create a reference to the cities collection
-    usuario_ref = db.collection('usuario')
-
-    # Create a query against the collection
-    query_ref = usuario_ref.where('nombre', '==', nombre)
-
-    content = "<h1> Tengo "
-
-    for i in query_ref.stream():
-        content = content + f"{i.to_dict()['edad']}"
-    
-    content = content + " años </h1>"
- 
-    return content
-"""
-
-
-
-
-
-    
-
-
-
-""" 
-EJEMPLO PARA LEER DATOS DE UN USUARIO CONCRETO SABIENDO SU ID DEL DOCUMENTO EN EL QUE ESTÁ.
-EL DOCUMENTO SERÍA COMO LA PÁGINA/FILA DE UNA TABLA DONDE ESTA GUARDADA LA INFO DE UN USUARIO
-(se entiende mejor viendo Firestore)
-
-import firebase_admin
-from firebase_admin import credentials
-from firebase_admin import firestore
-
-cred = credentials.Certificate("serviceAccountKey.json")
-firebase_admin.initialize_app(cred)
-db = firestore.client()
-
-doc_ref = db.collection(u'usuario').document(u'FLtfVhWk26Beqtjpq3Bu')
-
-doc = doc_ref.get()
-
-if doc.exists:
-    print(f'Document data: {doc.to_dict()}')
-else:
-    print(u'No such document!')
-
-"""
