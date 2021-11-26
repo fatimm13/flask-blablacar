@@ -251,7 +251,7 @@ def conseguir_actualizar_eliminar_usuarios(id):
         viajes = db.collection("viajes")
         resul = viajes.where("idConductor","==",str(id))
         for i in resul.stream():
-            viajes.document(str(i.id)).update({'nombreConducto' : request.json['nombre']})
+            viajes.document(str(i.id)).update({'nombreConductor' : request.json['nombre']})
         
         usu.update(content)
         return jsonify(usu.get().to_dict())
