@@ -7,10 +7,16 @@ import requests ##csv, operator,
 import pandas as pd
 import numpy as np
 from flask import Flask, request, jsonify 
+from flask_cors import CORS
+
 app = Flask(__name__)
+app.config['CORS_HEADERS'] = 'Content-Type'
+
+CORS(app)
 cred = credentials.Certificate("serviceAccountKey.json")
 firebase_admin.initialize_app(cred)
 db = firestore.client()
+
 
 URL_PRECIO_GASOLINA = "https://geoportalgasolineras.es/resources/files/preciosEESS_es.xls"
 preciosGasolina = None
@@ -109,6 +115,19 @@ def fromCollectionToJson(query_ref):
         for key, value in resp.items(): resp.update({key : stringify(value)})
         d.update({cont : resp})
         cont = cont+1
+    return jsonify(d)
+
+def fromCollectionToJson(query_ref):
+    '''
+    Función que recibe una referencia de una colección y la devuelve como JSON.
+    '''
+    d = []
+    for i in query_ref.stream():
+        resp = i.to_dict()
+        for key, value in resp.items(): resp.update({key : stringify(value)})
+        resp.update({"id":i.id})
+        d.append(resp)
+       
     return jsonify(d)
 
 def stringify(value):
@@ -288,8 +307,8 @@ def conseguir_subir_viajes():
         items = [i for i in request.args.items() if i[0] in validAttributesViajes ]
         
         if len(items)==len(request.args):
-            
-            return makeViajesQuery(items)
+            return fromCollectionToJson(db.collection('viajes'))
+            #return makeViajesQuery(items)
         else:
             return "Algún atributo no es válido"
             
