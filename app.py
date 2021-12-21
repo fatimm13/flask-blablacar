@@ -117,18 +117,6 @@ def getCollection(tabla):
     query_ref = db.collection(tabla)
     return fromCollectionToJson(query_ref)
 
-def fromCollectionToJson(query_ref):
-    '''
-    Función que recibe una referencia de una colección y la devuelve como JSON.
-    '''
-    d = dict()
-    cont = 0
-    for i in query_ref.stream():
-        resp = i.to_dict()
-        for key, value in resp.items(): resp.update({key : stringify(value)})
-        d.update({cont : resp})
-        cont = cont+1
-    return jsonify(d)
 
 def fromCollectionToJson(query_ref):
     '''

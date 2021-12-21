@@ -5,7 +5,7 @@ rm -r venv/
 python -m venv venv/
 
 #Select the new enviroment:
-venv\Scripts\activate         
+venv\Scripts\activate
 
 #Install requirements:       
 pip install -r requirements.txt
