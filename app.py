@@ -9,6 +9,17 @@ import numpy as np
 from flask import Flask, request, jsonify 
 from flask_cors import CORS
 from geopy.geocoders import Nominatim
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
+
+cloudinary.config( 
+  cloud_name = "dugtth6er", 
+  api_key = "917624729957762", 
+  api_secret = "tLjX2_c7EoHRi-BxePmjtry6kjY",
+  secure = True
+)
+
 geolocator = Nominatim(user_agent="geoapiExercises")
 
 app = Flask(__name__)
@@ -237,7 +248,8 @@ def conseguir_subir_usuarios():
             'edad' : request.json['edad'],
             'fecha' : aux,
             'nombre' : request.json['nombre'],
-            'ubicacion' : request.json['ubicacion']
+            'ubicacion' : request.json['ubicacion'],
+            'imagen' : "https://res.cloudinary.com/dugtth6er/image/upload/v1639832477/perfil_hont25.png"
         }
 
         db.collection('usuarios').document().set(content)
@@ -245,7 +257,13 @@ def conseguir_subir_usuarios():
     else:
         return("400: BAD REQUEST.")
 
-    
+@app.route("/usuarios/<id>/foto", methods = ['PUT'])
+def actualizar_imagen(id):
+    res = cloudinary.uploader.upload(request.files["file"])
+    #Obtener otros datos del form
+    id = request.form["id"]
+    db.collection('usuarios').document(id).update({"imagen":res["url"]})
+    return res["url"]
 
 @app.route("/usuarios/<id>", methods = ['GET','PUT','DELETE'])
 def conseguir_actualizar_eliminar_usuarios(id):
