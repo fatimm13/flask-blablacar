@@ -8,6 +8,8 @@ import pandas as pd
 import numpy as np
 from flask import Flask, request, jsonify 
 from flask_cors import CORS
+from geopy.geocoders import Nominatim
+geolocator = Nominatim(user_agent="geoapiExercises")
 
 app = Flask(__name__)
 app.config['CORS_HEADERS'] = 'Content-Type'
@@ -324,13 +326,20 @@ def conseguir_subir_viajes():
         longDest = request.json['longDest'] 
         coordDest = GeoPoint(latDest, longDest)
         
+        location = geolocator.reverse(str(latOrig)+","+str(longOrig))
+        address = location.raw['address']
+        origen = address.get('city', '')
+
+        location = geolocator.reverse(str(latDest)+","+str(longDest))
+        address = location.raw['address']
+        destino = address.get('city', '')
         content = {
             'coordOrigen' : coordOrig,
             'coordDestino' : coordDest,
             'horaDeSalida' : aux,
             'nombre' : request.json['nombre'],
-            'destino' : request.json['destino'],
-            'origen' : request.json['origen'],
+            'destino' : destino,
+            'origen' : origen,
             'nombreConductor' : request.json['nombreConductor'],
             'idConductor' : request.json['idConductor'],
             'plazas' : request.json['plazas'],
