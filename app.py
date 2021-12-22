@@ -137,7 +137,7 @@ def stringify(value):
     '''
     string = ""
     if(isinstance(value,GeoPoint)):
-        string = "["+str(value.latitude)+","+str(value.longitude)+"]"
+        string = [value.latitude,value.longitude]
     else:
         string = str(value)
     return string
@@ -248,10 +248,10 @@ def conseguir_subir_usuarios():
 @app.route("/usuarios/<id>/foto", methods = ['PUT'])
 def actualizar_imagen(id):
     res = cloudinary.uploader.upload(request.files["file"])
-    #Obtener otros datos del form
+    #Obtener otros datos del for
     id = request.form["id"]
     db.collection('usuarios').document(id).update({"imagen":res["url"]})
-    return res["url"]
+    return jsonify(res["url"])
 
 @app.route("/usuarios/<id>", methods = ['GET','PUT','DELETE'])
 def conseguir_actualizar_eliminar_usuarios(id):
