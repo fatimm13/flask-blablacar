@@ -12,7 +12,7 @@ from geopy.geocoders import Nominatim
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
-
+import json
 cloudinary.config( 
   cloud_name = "dugtth6er", 
   api_key = "917624729957762", 
@@ -440,13 +440,13 @@ def conseguir_gasolinera():
             q = 'Latitud >= '+str(lat-radio)+' and '+'Latitud <= '+str(lat+radio)+' and ' + 'Longitud >= '+str(long-radio)+' and '+'Longitud <= '+str(long+radio)
 
             data.query(q, inplace = True)
-            return jsonify(data.to_dict())
+            return data.to_json(orient='records')
             
         elif("provincia" in keys):
             data = preciosGasolina.copy()
             q = 'Provincia == "'+request.args["provincia"]+'"'
             data.query(q, inplace = True)
-            return jsonify(data.to_dict())
+            return data.to_json(orient='records')
             
         else:
             return "Algún atributo no es válido"
