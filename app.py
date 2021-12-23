@@ -181,26 +181,26 @@ def makeViajesQuery(parametros):
     y filtra por otros dos ("libres","precio"), devolvindo la solución como JSON.
     '''
     query_ref = db.collection("viajes")
-    
+    nombre = ""
     valor = None
     for i in parametros:
-        if(i[0] == "libres"):
+        if (i[0] == "nombre"):
+            nombre = i[1]
+        elif(i[0] == "libres"):
             query_ref = query_ref.where(i[0], '>=', int(i[1]))  
         elif(i[0] == "precio"):
             valor = float(i[1])
         else:
             query_ref = query_ref.where(i[0], '==', i[1])
 
-    d = dict()
-    cont = 0
+    d = []
 
     for i in query_ref.stream():
         resp = i.to_dict()
-        if(valor==None or resp["precio"]<=valor):
+        if( (nombre.lower() in resp["nombre"].lower()) and (valor==None or resp["precio"]<=valor)):
             for key, value in resp.items(): resp.update({key : stringify(value)})
-
-            d.update({cont : resp})
-            cont = cont+1
+            resp.update({"id":i.id})
+            d.append(resp)
 
     return jsonify(d)
     
@@ -315,8 +315,8 @@ def conseguir_subir_viajes():
         items = [i for i in request.args.items() if i[0] in validAttributesViajes ]
         
         if len(items)==len(request.args):
-            return fromCollectionToJson(db.collection('viajes'))
-            #return makeViajesQuery(items)
+            #return fromCollectionToJson(db.collection('viajes'))
+            return makeViajesQuery(items)
         else:
             return "Algún atributo no es válido"
             
