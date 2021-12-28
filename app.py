@@ -303,6 +303,77 @@ def conseguir_viajes_conductor(id):
     else:
         return "400: BAD REQUEST."
 
+########################################### NUEVAS FUNCIONES
+
+@app.route("/usuarios/<id>/reservados", methods = ['GET'])
+def conseguir_viajes_reservados_de_usuario(id):
+    """
+    GET: Devuelve los viajes del usuario(No Conductor) que ha reservado.
+    """
+
+    if request.method == 'GET':
+        viajes = db.collection('usuarios').document(str(id)).collection('viajes').where('reservadas', '>', 0)
+
+        lista = [] 
+        for i in viajes.stream():
+            dic = db.collection('viajes').document(str(i.id)).get().to_dict()
+            dic["coordOrigen"] = stringify(dic["coordOrigen"])
+            dic["coordDestino"] = stringify(dic["coordDestino"])
+            dic.update({'id': i.id, 'reservadas': i.to_dict()['reservadas'] })
+            lista.append(dic)
+
+        return jsonify(lista)
+
+    else:
+        return "400: BAD REQUEST."
+
+
+### usuarios/<id>/reservas [ POST] 
+
+@app.route("/usuarios/<idUsuario>/reservas/<idViaje>", methods = ['PUT'])
+def crear_reserva_de_usuario(idUsuario, idViaje):
+    if request.method == 'PUT':
+        
+        
+            
+
+####
+        viaje_ref = db.collection('viajes').document(str(idViaje))
+        viaje = viaje_ref.get().to_dict()
+        reservadas = request.json['reservadas']
+        libres = viaje["libres"]
+        if libres >= reservadas :
+            viajeUsuario_ref = db.collection('usuarios').document(str(idUsuario)).collection('viajes').document(str(idViaje))
+            viajeUsuario = viajeUsuario_ref.get()
+
+            contentViaje = {
+                'libres' : libres - reservadas
+            }
+            viaje_ref.update(contentViaje)
+
+            if viajeUsuario.exists:
+                reservadas += viajeUsuario.to_dict()["reservadas"]
+
+            
+            content = {
+                'esConductor' : idUsuario == viaje["idConductor"],
+                'nombre' : viaje["nombre"],
+                'reservadas' : reservadas
+            }
+
+            viajeUsuario_ref.set(content)
+
+            return jsonify(content)
+        else:
+            return "412: : PRECONDITION FAILED"
+             
+    else:
+        return "400: BAD REQUEST."
+
+
+
+##########################################################
+
 @app.route("/viajes", methods = ['GET', 'POST'])
 def conseguir_subir_viajes():
     """
@@ -420,6 +491,7 @@ def conseguir_conductor_viaje(id):
         return jsonify(conductor)
     else:
         return "400: BAD REQUEST."
+
 
 @app.route("/gasolinera", methods = ['GET'])
 def conseguir_gasolinera():
