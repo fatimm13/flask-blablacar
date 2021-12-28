@@ -284,7 +284,22 @@ def conseguir_actualizar_eliminar_usuarios(id):
         return jsonify(usu.get().to_dict())
         
     elif request.method == 'DELETE':
-        usu = db.collection('usuarios').document(str(id)).delete()
+
+        usu = db.collection('usuarios').document(str(id))
+        
+        for i in usu.collection('viajes').stream():
+            id = i.id
+
+            ref = db.collection('viajes').document(id)
+            viaje = ref.get().to_dict()
+            l = viaje["libres"] + i.to_dict().get("reservadas",0)
+            ref.update({'libres': l})
+
+            usu.collection('viajes').document(id).delete()
+
+
+        usu.delete()
+        
         return "200: Borrado exitoso."
     else:
         
@@ -319,7 +334,8 @@ def conseguir_viajes_reservados_de_usuario(id):
             dic = db.collection('viajes').document(str(i.id)).get().to_dict()
             dic["coordOrigen"] = stringify(dic["coordOrigen"])
             dic["coordDestino"] = stringify(dic["coordDestino"])
-            dic.update({'id': i.id, 'reservadas': i.to_dict()['reservadas'] })
+            res =  i.to_dict().get("reservadas",0)
+            dic.update({'id': i.id, 'reservadas': res})
             lista.append(dic)
 
         return jsonify(lista)
@@ -328,16 +344,10 @@ def conseguir_viajes_reservados_de_usuario(id):
         return "400: BAD REQUEST."
 
 
-### usuarios/<id>/reservas [ POST] 
-
-@app.route("/usuarios/<idUsuario>/reservas/<idViaje>", methods = ['PUT'])
+@app.route("/usuarios/<idUsuario>/reservas/<idViaje>", methods = ['PUT','DELETE'])
 def crear_reserva_de_usuario(idUsuario, idViaje):
     if request.method == 'PUT':
         
-        
-            
-
-####
         viaje_ref = db.collection('viajes').document(str(idViaje))
         viaje = viaje_ref.get().to_dict()
         reservadas = request.json['reservadas']
@@ -349,10 +359,12 @@ def crear_reserva_de_usuario(idUsuario, idViaje):
             contentViaje = {
                 'libres' : libres - reservadas
             }
+            
+            
             viaje_ref.update(contentViaje)
 
             if viajeUsuario.exists:
-                reservadas += viajeUsuario.to_dict()["reservadas"]
+                reservadas += viajeUsuario.to_dict().get("reservadas",0)
 
             
             content = {
@@ -366,7 +378,38 @@ def crear_reserva_de_usuario(idUsuario, idViaje):
             return jsonify(content)
         else:
             return "412: : PRECONDITION FAILED"
-             
+
+    elif request.method == 'DELETE':
+        
+        viaje_ref = db.collection('viajes').document(str(idViaje))
+        viaje = viaje_ref.get().to_dict()
+        libres = viaje["libres"]
+        
+        
+        viajeUsuario_ref = db.collection('usuarios').document(str(idUsuario)).collection('viajes').document(str(idViaje))
+        viajeUsuario = viajeUsuario_ref.get()
+
+        if viajeUsuario.exists:
+
+            aux = viajeUsuario.to_dict()
+
+            if not(aux["esConductor"]):
+                viajeUsuario_ref.delete()
+            else:
+                viajeUsuario_ref.update({"reservadas":0})
+
+            li = libres + aux.get("reservadas",0)
+
+            contentViaje = {
+                'libres' : li
+
+            }
+
+            viaje_ref.update(contentViaje)
+            return "200. Borrado exitoso"
+        else:
+            return "404: DATA NOT FOUND."
+            
     else:
         return "400: BAD REQUEST."
 
@@ -405,11 +448,13 @@ def conseguir_subir_viajes():
         
         location = geolocator.reverse(str(latOrig)+","+str(longOrig))
         address = location.raw['address']
-        origen = address.get('city', '')
+        origen = address.get('city', address.get('state',  address.get('country', '')))
 
+        
         location = geolocator.reverse(str(latDest)+","+str(longDest))
         address = location.raw['address']
-        destino = address.get('city', '')
+        destino = address.get('city', address.get('state', address.get('country', '')))
+
         content = {
             'coordOrigen' : coordOrig,
             'coordDestino' : coordDest,
@@ -469,9 +514,10 @@ def conseguir_actualizar_eliminar_viajes(id):
     elif request.method == 'DELETE':
         dict = db.collection('viajes').document(str(id)).get().to_dict()
         idCond = dict['idConductor']
-        db.collection('usuarios').document(str(idCond)).collection('viajes').document(str(id)).delete()
-        #TODO Borrar donde es pasajero (Se hará cuando tengamos forma de registrar pasajeros)
-
+        
+        for i in db.collection("usuarios").stream():
+            db.collection('usuarios').document(i.id).collection('viajes').document(str(id)).delete()
+        
         viaje = db.collection('viajes').document(str(id)).delete()
         return "200: Borrado exitoso."
     else:
