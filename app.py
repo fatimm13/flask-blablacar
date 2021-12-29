@@ -13,6 +13,7 @@ import cloudinary
 import cloudinary.uploader
 import cloudinary.api
 import json
+
 cloudinary.config( 
   cloud_name = "dugtth6er", 
   api_key = "917624729957762", 
@@ -131,6 +132,7 @@ def fromCollectionToJson(query_ref):
        
     return jsonify(d)
 
+
 def stringify(value):
     '''
     str() controlando tipos de la BD que no disponen del mismo.
@@ -142,9 +144,11 @@ def stringify(value):
         string = str(value)
     return string
 
+
 numericos = ["edad","plazas","libres"]
 validAttributesUsuarios = ["nombre","ubicacion"]
 validAttributesViajes = ["nombre","origen","destino","libres","precio"]
+
 
 def makeSimpleQuery(tabla, parametro, valor):
     '''
@@ -245,13 +249,24 @@ def conseguir_subir_usuarios():
     else:
         return("400: BAD REQUEST.")
 
-@app.route("/usuarios/<id>/foto", methods = ['PUT'])
-def actualizar_imagen(id):
-    res = cloudinary.uploader.upload(request.files["file"])
-    #Obtener otros datos del for
-    id = request.form["id"]
-    db.collection('usuarios').document(id).update({"imagen":res["url"]})
-    return jsonify(res["url"])
+
+@app.route("/usuarios/<id>/foto", methods = ['PUT','DELETE'])
+def actualizar_borrar_imagen(id):
+    """
+    PUT: Actualiza la foto de perfil de un usuario.
+    DELETE: Elimina la foto de perfil de un usuario y vuelve a establecer la de por defecto.
+    """
+    if request.method == 'PUT':
+        res = cloudinary.uploader.upload(request.files["file"])
+        #Obtener otros datos del for
+        id = request.form["id"]
+        db.collection('usuarios').document(id).update({"imagen":res["url"]})
+        return jsonify(res["url"])
+    elif request.method == 'DELETE':
+        url = "https://res.cloudinary.com/dugtth6er/image/upload/v1639832477/perfil_hont25.png"
+        db.collection('usuarios').document(id).update({"imagen":url})
+        return jsonify(url)
+
 
 @app.route("/usuarios/<id>", methods = ['GET','PUT','DELETE'])
 def conseguir_actualizar_eliminar_usuarios(id):
@@ -260,9 +275,7 @@ def conseguir_actualizar_eliminar_usuarios(id):
     PUT: Actualiza el usuario del id pasado con los parametros del JSON recibido.
     DELETE: Borra un usuario a partir de su id.
     """
-
     if request.method == 'GET':
-
         dict = db.collection('usuarios').document(str(id)).get().to_dict()
         return jsonify(dict)
 
@@ -274,7 +287,7 @@ def conseguir_actualizar_eliminar_usuarios(id):
             'nombre' : request.json['nombre'],
             'ubicacion' : request.json['ubicacion']
         }
-        
+
         viajes = db.collection("viajes")
         resul = viajes.where("idConductor","==",str(id))
         for i in resul.stream():
@@ -289,20 +302,16 @@ def conseguir_actualizar_eliminar_usuarios(id):
         
         for i in usu.collection('viajes').stream():
             id = i.id
-
             ref = db.collection('viajes').document(id)
             viaje = ref.get().to_dict()
             l = viaje["libres"] + i.to_dict().get("reservadas",0)
             ref.update({'libres': l})
-
             usu.collection('viajes').document(id).delete()
 
-
         usu.delete()
-        
         return "200: Borrado exitoso."
+
     else:
-        
         return "400: BAD REQUEST."
 
 
@@ -311,24 +320,20 @@ def conseguir_viajes_conductor(id):
     """
     GET: Devuelve los viajes del conductor ordenados por horaDeSalida.
     """
-
     if request.method == 'GET':
         viajes = db.collection('viajes').where('idConductor', '==', str(id)).order_by('horaDeSalida', direction=firestore.Query.ASCENDING)
         return fromCollectionToJson(viajes)
     else:
         return "400: BAD REQUEST."
 
-########################################### NUEVAS FUNCIONES
 
 @app.route("/usuarios/<id>/reservados", methods = ['GET'])
 def conseguir_viajes_reservados_de_usuario(id):
     """
     GET: Devuelve los viajes del usuario(No Conductor) que ha reservado.
     """
-
     if request.method == 'GET':
         viajes = db.collection('usuarios').document(str(id)).collection('viajes').where('reservadas', '>', 0)
-
         lista = [] 
         for i in viajes.stream():
             dic = db.collection('viajes').document(str(i.id)).get().to_dict()
@@ -337,7 +342,6 @@ def conseguir_viajes_reservados_de_usuario(id):
             res =  i.to_dict().get("reservadas",0)
             dic.update({'id': i.id, 'reservadas': res})
             lista.append(dic)
-
         return jsonify(lista)
 
     else:
@@ -346,6 +350,10 @@ def conseguir_viajes_reservados_de_usuario(id):
 
 @app.route("/usuarios/<idUsuario>/reservas/<idViaje>", methods = ['PUT','DELETE'])
 def crear_reserva_de_usuario(idUsuario, idViaje):
+    """
+    PUT: Actualiza la cantidad de plazas reservadas por un usuario (si no existia reserva, la crea)
+    DELETE: Borra las reservas que habia realizado un usuario en un viaje
+    """
     if request.method == 'PUT':
         
         viaje_ref = db.collection('viajes').document(str(idViaje))
@@ -360,13 +368,11 @@ def crear_reserva_de_usuario(idUsuario, idViaje):
                 'libres' : libres - reservadas
             }
             
-            
             viaje_ref.update(contentViaje)
 
             if viajeUsuario.exists:
                 reservadas += viajeUsuario.to_dict().get("reservadas",0)
 
-            
             content = {
                 'esConductor' : idUsuario == viaje["idConductor"],
                 'nombre' : viaje["nombre"],
@@ -376,6 +382,7 @@ def crear_reserva_de_usuario(idUsuario, idViaje):
             viajeUsuario_ref.set(content)
 
             return jsonify(content)
+
         else:
             return "412: : PRECONDITION FAILED"
 
@@ -384,7 +391,6 @@ def crear_reserva_de_usuario(idUsuario, idViaje):
         viaje_ref = db.collection('viajes').document(str(idViaje))
         viaje = viaje_ref.get().to_dict()
         libres = viaje["libres"]
-        
         
         viajeUsuario_ref = db.collection('usuarios').document(str(idUsuario)).collection('viajes').document(str(idViaje))
         viajeUsuario = viajeUsuario_ref.get()
@@ -402,20 +408,16 @@ def crear_reserva_de_usuario(idUsuario, idViaje):
 
             contentViaje = {
                 'libres' : li
-
             }
-
             viaje_ref.update(contentViaje)
             return "200. Borrado exitoso"
+
         else:
             return "404: DATA NOT FOUND."
             
     else:
         return "400: BAD REQUEST."
 
-
-
-##########################################################
 
 @app.route("/viajes", methods = ['GET', 'POST'])
 def conseguir_subir_viajes():
@@ -596,5 +598,3 @@ def conseguir_datos_covid():
             return "Algún atributo no es válido"
     else:
         return "400: BAD REQUEST."
-
-        
