@@ -12,7 +12,19 @@ from geopy.geocoders import Nominatim
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
+import tweepy 
 import json
+
+t_consumer_key = "fn1YuMm8f8ikI3DxaCfQg5ukS"
+t_consumer_secret = "7W3tk5ujoKenkCNhf0ki8n2juRENXMVwuZyYYikdxNlDX1yqcd"
+
+t_key = "1482356704281075717-CluK1cpO6vrvl6bJXLxfXt4oaGhGF8"
+t_secret = "jl1rwotz9ZS0rvvQI7AuHiuEHMy9k5HzFlTeQpaC1gmzA"
+
+t_auth = tweepy.OAuthHandler(t_consumer_key,t_consumer_secret)
+t_auth.set_access_token(t_key,t_secret)
+
+t_api = tweepy.API(t_auth, wait_on_rate_limit=True)
 
 cloudinary.config( 
   cloud_name = "dugtth6er", 
@@ -43,7 +55,7 @@ ultConsCov = None
 
 @app.route("/")
 def home():
-    downloadCSV(URL_DATOS_COVID)
+    
     return "Hello Flask"
 
 def downloadCSVComplete(url):
@@ -476,6 +488,13 @@ def conseguir_subir_viajes():
         c = db.collection('usuarios').document(str(request.json['idConductor']))
         c.collection("viajes").document(v.id).set({'nombre' : request.json['nombre'], 'esConductor' : True})
         
+        mensaje = "Uno de nuestros usuarios os trae la oportunidad de embarcaros en '"+request.json['nombre']+"'.\r"
+        mensaje = mensaje + "Este viaje sale de "+origen+" dirección "+destino+" a las "+request.json['hora']+".\r"
+        mensaje = mensaje + "Cada plaza vale "+str(request.json['precio'])+" euros y quedan "+str(request.json['libres'])+" plazas libres.\r¡No te lo pierdas!"
+
+        t_api.update_status(mensaje)
+
+
         content["coordOrigen"] = stringify(coordOrig)
         content["coordDestino"] = stringify(coordDest)
         return jsonify(content)
