@@ -280,7 +280,7 @@ def actualizar_borrar_imagen(id):
         return jsonify(url)
 
 
-@app.route("/usuarios/<id>", methods = ['GET','PUT','DELETE'])
+@app.route("/usuarios/<id>", methods = ['GET','POST','PUT','DELETE'])
 def conseguir_actualizar_eliminar_usuarios(id):
     """
     GET: Devuelve un usuario a partir del id pasado.
@@ -288,8 +288,28 @@ def conseguir_actualizar_eliminar_usuarios(id):
     DELETE: Borra un usuario a partir de su id.
     """
     if request.method == 'GET':
-        dict = db.collection('usuarios').document(str(id)).get().to_dict()
-        return jsonify(dict)
+        doc = db.collection('usuarios').document(str(id)).get()
+        if(doc.exists):
+            res = jsonify(doc.to_dict())
+        else:
+            res =  "", 204
+
+        return res
+    elif request.method == 'POST':
+
+        aux = datetime.now()
+
+        content = {
+            'descripcion' : request.json['descripcion'],
+            'edad' : request.json['edad'],
+            'fecha' : aux,
+            'nombre' : request.json['nombre'],
+            'ubicacion' : request.json['ubicacion'],
+            'imagen' : "https://res.cloudinary.com/dugtth6er/image/upload/v1639832477/perfil_hont25.png"
+        }
+
+        db.collection('usuarios').document(str(id)).set(content)
+        return jsonify(content)
 
     elif request.method == 'PUT':
         usu = db.collection('usuarios').document(str(id))
