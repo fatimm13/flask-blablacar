@@ -630,10 +630,77 @@ def conseguir_datos_covid():
             data.query(q, inplace=True)
             data["Fecha"] = [datetime.strptime(i, '%d/%m/%Y') for i in data["Fecha"]]
             data.sort_values(by = 'Fecha', ascending = False, inplace = True)
-            data = data.head(15)
-            data = data.reset_index(drop=True)
-            return jsonify(data.to_dict())
+            data = data.groupby(["Fecha","Provincia"]).sum()
+            data = data.head(1)
+            data = data.reset_index(drop=False)
+            data["Fecha"] = [datetime.strftime(i,'%d/%m/%Y') for i in data["Fecha"]]
+            return data.to_json(orient='records')
         else:
             return "Algún atributo no es válido"
     else:
         return "400: BAD REQUEST."
+
+@app.route("/mensajes", methods = ["GET","POST"])
+def conseguir_subir_mensajes():
+    """
+    GET: Devuelve los mensajes entre un usuario creador y un usuario destino.
+    POST: Recibe un JSON y crea un mensaje en la BD con dichos datos.
+    """
+    if request.method == 'GET':
+
+        items = [i for i in request.args.items() if i[0] in ["destino","creador"] ]
+       
+        if len(items) == 2:
+
+            creador =  request.args["creador"]
+            destino =  request.args["destino"]
+
+            ref1 = db.collection("mensajes").where("creador","==",creador)
+            ref1 = ref1.where("destino","==",destino)
+            ref1 = ref1.order_by('fecha', direction=firestore.Query.ASCENDING)
+
+            ref2 = db.collection("mensajes").where("creador","==",destino)
+            ref2 = ref2.where("destino","==",creador)
+            ref2 = ref2.order_by('fecha', direction=firestore.Query.ASCENDING)
+
+            d = []
+
+            for i in ref1.stream():
+                resp = i.to_dict()
+                
+                for key, value in resp.items(): resp.update({key : stringify(value)})
+                resp.update({"id":i.id})
+                d.append(resp)
+
+            for i in ref2.stream():
+                resp = i.to_dict()
+                
+                for key, value in resp.items(): resp.update({key : stringify(value)})
+                resp.update({"id":i.id})
+                d.append(resp)
+            
+            d.sort(key=getDate)
+            
+            return jsonify(d)
+        else:
+            return "Algún atributo no es válido"
+        
+    elif request.method == 'POST':
+
+        aux = datetime.now()
+
+        content = {
+            'creador' : request.json['creador'],
+            'destino' : request.json['destino'],
+            'fecha' : aux,
+            'contenido' : request.json['contenido']
+        }
+
+        db.collection('mensajes').document().set(content)
+        return jsonify(content)
+
+    else:
+        return "400: BAD REQUEST."
+
+def getDate(e):
+  return e['fecha']
