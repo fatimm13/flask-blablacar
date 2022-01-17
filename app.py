@@ -2,6 +2,7 @@ from datetime import date, datetime, timedelta
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore
+from firebase_admin import auth
 from google.cloud.firestore_v1 import GeoPoint
 import requests ##csv, operator, 
 import pandas as pd
@@ -33,6 +34,8 @@ cloudinary.config(
   secure = True
 )
 
+
+
 geolocator = Nominatim(user_agent="geoapiExercises")
 
 app = Flask(__name__)
@@ -57,6 +60,24 @@ ultConsCov = None
 def home():
     
     return "Hello Flask"
+
+@app.route("/loginUsuario", methods = ['POST'])
+def login():
+    if(request.method=="POST"):
+        
+        token =  request.headers["Authorization"]
+        token = token[7:]
+
+        print(token)
+
+        decoded_token = auth.verify_id_token(token)
+        uid = decoded_token['uid']
+        print(decoded_token['exp'])
+        user = auth.get_user(uid)
+        return uid
+    else:
+        return "No", 400
+
 
 def downloadCSVComplete(url):
     '''
