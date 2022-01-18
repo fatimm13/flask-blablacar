@@ -34,6 +34,7 @@ cloudinary.config(
   secure = True
 )
 
+tokens = dict()
 
 
 geolocator = Nominatim(user_agent="geoapiExercises")
@@ -68,13 +69,40 @@ def login():
         token =  request.headers["Authorization"]
         token = token[7:]
 
-        print(token)
-
         decoded_token = auth.verify_id_token(token)
         uid = decoded_token['uid']
-        print(decoded_token['exp'])
-        user = auth.get_user(uid)
-        return uid
+        exp = decoded_token['exp']
+
+        tokens[token] = {"uid":uid,"exp":exp}
+
+        doc = db.collection('usuarios').document(uid).get()
+
+        if(doc.exists):
+            print("Existo")
+            d = doc.to_dict()
+            d.update({"id":uid})
+            res = jsonify(d)
+        else:
+            aux = datetime.now()
+            print("Existo")
+
+            content = {
+                'descripcion' : "",
+                'edad' : 18,
+                'fecha' : aux,
+                'nombre' : request.json['nombre'],
+                'ubicacion' : "Desconocida",
+                'imagen' : "https://res.cloudinary.com/dugtth6er/image/upload/v1639832477/perfil_hont25.png"
+            }
+            print(content)
+
+            db.collection('usuarios').document(uid).set(content)
+            content.update({"id":uid})
+
+            res = jsonify(content)
+
+        return res
+
     else:
         return "No", 400
 
