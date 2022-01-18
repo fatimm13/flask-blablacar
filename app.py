@@ -57,6 +57,34 @@ covid = None
 ultActCov = None
 ultConsCov = None
 
+"""
+def validar(token,uid):
+    token = token[7:]
+    t = tokens.get(token, None)
+    if(t is None):
+        res = False
+    else:
+        aux = datetime.now().timestamp()
+        if(aux >= t["exp"]):
+            res = False
+            tokens.pop(token,None)
+        else:
+            res = uid == t["uid"] 
+    
+    return res
+"""
+
+def verificarUsuario(token, uid):
+    """
+    Valida el token y comprueba que el usuario sea el correcto
+    """
+    token = token[7:]
+
+    decoded_token = auth.verify_id_token(token)
+    id = decoded_token['uid']
+    return uid == id
+
+
 @app.route("/")
 def home():
     
@@ -71,9 +99,9 @@ def login():
 
         decoded_token = auth.verify_id_token(token)
         uid = decoded_token['uid']
-        exp = decoded_token['exp']
+        #exp = decoded_token['exp']
 
-        tokens[token] = {"uid":uid,"exp":exp}
+        #tokens[token] = {"uid":uid,"exp":exp}
 
         doc = db.collection('usuarios').document(uid).get()
 
@@ -329,7 +357,7 @@ def actualizar_borrar_imagen(id):
         return jsonify(url)
 
 
-@app.route("/usuarios/<id>", methods = ['GET','POST','PUT','DELETE'])
+@app.route("/usuarios/<id>", methods = ['GET','PUT','DELETE'])
 def conseguir_actualizar_eliminar_usuarios(id):
     """
     GET: Devuelve un usuario a partir del id pasado.
@@ -344,23 +372,22 @@ def conseguir_actualizar_eliminar_usuarios(id):
             res =  "", 204
 
         return res
-    elif request.method == 'POST':
-
-        aux = datetime.now()
-
-        content = {
-            'descripcion' : request.json['descripcion'],
-            'edad' : request.json['edad'],
-            'fecha' : aux,
-            'nombre' : request.json['nombre'],
-            'ubicacion' : request.json['ubicacion'],
-            'imagen' : "https://res.cloudinary.com/dugtth6er/image/upload/v1639832477/perfil_hont25.png"
-        }
-
-        db.collection('usuarios').document(str(id)).set(content)
-        return jsonify(content)
 
     elif request.method == 'PUT':
+
+        print("Prueba de verificación:")
+        try:
+
+            if(not verificarUsuario(request.headers["Authorization"],id)):
+                print("Usuario incorrecto")
+
+                return "Usuario incorrecto", 401
+
+        except Exception as e:
+            print(e) 
+            return str(e), 401
+        print("Verificado")
+
         usu = db.collection('usuarios').document(str(id))
         content = {
             'descripcion' : request.json['descripcion'],
@@ -378,6 +405,20 @@ def conseguir_actualizar_eliminar_usuarios(id):
         return jsonify(usu.get().to_dict())
         
     elif request.method == 'DELETE':
+
+        print("Prueba de verificación:")
+        try:
+
+            if(not verificarUsuario(request.headers["Authorization"],id)):
+                print("Usuario incorrecto")
+
+                return "Usuario incorrecto", 401
+
+        except Exception as e:
+            print(e) 
+            return str(e), 401
+
+        print("Verificado")
 
         usu = db.collection('usuarios').document(str(id))
         
@@ -435,6 +476,8 @@ def crear_reserva_de_usuario(idUsuario, idViaje):
     PUT: Actualiza la cantidad de plazas reservadas por un usuario (si no existia reserva, la crea)
     DELETE: Borra las reservas que habia realizado un usuario en un viaje
     """
+    
+
     if request.method == 'PUT':
         
         viaje_ref = db.collection('viajes').document(str(idViaje))
