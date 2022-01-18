@@ -112,7 +112,7 @@ def login():
             res = jsonify(d)
         else:
             aux = datetime.now()
-            print("Existo")
+            print("No existo")
 
             content = {
                 'descripcion' : "",
@@ -346,12 +346,42 @@ def actualizar_borrar_imagen(id):
     DELETE: Elimina la foto de perfil de un usuario y vuelve a establecer la de por defecto.
     """
     if request.method == 'PUT':
+
+        print("Prueba de verificación:")
+        try:
+
+            if(not verificarUsuario(request.headers["Authorization"],id)):
+                print("Usuario incorrecto")
+
+                return "Usuario incorrecto", 401
+
+        except Exception as e:
+            print(e) 
+            return str(e), 401
+
+        print("Verificado")
+
         res = cloudinary.uploader.upload(request.files["file"])
         #Obtener otros datos del for
         id = request.form["id"]
         db.collection('usuarios').document(id).update({"imagen":res["url"]})
         return jsonify(res["url"])
     elif request.method == 'DELETE':
+
+        print("Prueba de verificación:")
+        try:
+
+            if(not verificarUsuario(request.headers["Authorization"],id)):
+                print("Usuario incorrecto")
+
+                return "Usuario incorrecto", 401
+
+        except Exception as e:
+            print(e) 
+            return str(e), 401
+
+        print("Verificado")
+        
         url = "https://res.cloudinary.com/dugtth6er/image/upload/v1639832477/perfil_hont25.png"
         db.collection('usuarios').document(id).update({"imagen":url})
         return jsonify(url)
@@ -386,6 +416,7 @@ def conseguir_actualizar_eliminar_usuarios(id):
         except Exception as e:
             print(e) 
             return str(e), 401
+
         print("Verificado")
 
         usu = db.collection('usuarios').document(str(id))
@@ -431,6 +462,9 @@ def conseguir_actualizar_eliminar_usuarios(id):
             usu.collection('viajes').document(id).delete()
 
         usu.delete()
+
+        auth.delete_user(id)
+        
         return "200: Borrado exitoso."
 
     else:
@@ -476,7 +510,19 @@ def crear_reserva_de_usuario(idUsuario, idViaje):
     PUT: Actualiza la cantidad de plazas reservadas por un usuario (si no existia reserva, la crea)
     DELETE: Borra las reservas que habia realizado un usuario en un viaje
     """
-    
+    print("Prueba de verificación:")
+    try:
+
+        if(not verificarUsuario(request.headers["Authorization"],idUsuario)):
+            print("Usuario incorrecto")
+
+            return "Usuario incorrecto", 401
+
+    except Exception as e:
+        print(e) 
+        return str(e), 401
+
+    print("Verificado")
 
     if request.method == 'PUT':
         
@@ -562,6 +608,20 @@ def conseguir_subir_viajes():
             
     elif request.method == 'POST': 
 
+        print("Prueba de verificación:")
+        try:
+
+            if(not verificarUsuario(request.headers["Authorization"],request.json['idConductor'])):
+                print("Usuario incorrecto")
+
+                return "Usuario incorrecto", 401
+
+        except Exception as e:
+            print(e) 
+            return str(e), 401
+
+        print("Verificado")
+
         ### Crear viaje
         aux = datetime.fromisoformat(request.json['hora'])
 
@@ -637,17 +697,49 @@ def conseguir_actualizar_eliminar_viajes(id):
             'horaDeSalida' : aux,
             'libres' : request.json['libres']
         }
+
+        dict = viaje.get().to_dict()
+
+        print("Prueba de verificación:")
+        try:
+
+            if(not verificarUsuario(request.headers["Authorization"],dict["idConductor"])):
+                print("Usuario incorrecto")
+
+                return "Usuario incorrecto", 401
+
+        except Exception as e:
+            print(e) 
+            return str(e), 401
+
+        print("Verificado")
+        
         viaje.update(content)
         
         dict = viaje.get().to_dict()
         dict["coordOrigen"] = stringify(dict["coordOrigen"])
         dict["coordDestino"] = stringify(dict["coordDestino"])
+        
         return jsonify(dict)
         
     elif request.method == 'DELETE':
         dict = db.collection('viajes').document(str(id)).get().to_dict()
         idCond = dict['idConductor']
         
+        print("Prueba de verificación:")
+        try:
+
+            if(not verificarUsuario(request.headers["Authorization"],idCond)):
+                print("Usuario incorrecto")
+
+                return "Usuario incorrecto", 401
+
+        except Exception as e:
+            print(e) 
+            return str(e), 401
+
+        print("Verificado")
+
         for i in db.collection("usuarios").stream():
             db.collection('usuarios').document(i.id).collection('viajes').document(str(id)).delete()
         
@@ -738,6 +830,9 @@ def conseguir_subir_mensajes():
     GET: Devuelve los mensajes entre un usuario creador y un usuario destino.
     POST: Recibe un JSON y crea un mensaje en la BD con dichos datos.
     """
+
+    
+
     if request.method == 'GET':
 
         items = [i for i in request.args.items() if i[0] in ["destino","creador"] ]
@@ -746,6 +841,20 @@ def conseguir_subir_mensajes():
 
             creador =  request.args["creador"]
             destino =  request.args["destino"]
+            
+            print("Prueba de verificación:")
+            try:
+
+                if(not verificarUsuario(request.headers["Authorization"],creador)):
+                    print("Usuario incorrecto")
+
+                    return "Usuario incorrecto", 401
+
+            except Exception as e:
+                print(e) 
+                return str(e), 401
+
+            print("Verificado")
 
             ref1 = db.collection("mensajes").where("creador","==",creador)
             ref1 = ref1.where("destino","==",destino)
@@ -778,9 +887,23 @@ def conseguir_subir_mensajes():
             return "Algún atributo no es válido"
         
     elif request.method == 'POST':
+                
+        print("Prueba de verificación:")
+        try:
+
+            if(not verificarUsuario(request.headers["Authorization"],request.json['creador'])):
+                print("Usuario incorrecto")
+
+                return "Usuario incorrecto", 401
+
+        except Exception as e:
+            print(e) 
+            return str(e), 401
+
+        print("Verificado")
 
         aux = datetime.now()
-
+        
         content = {
             'creador' : request.json['creador'],
             'destino' : request.json['destino'],
